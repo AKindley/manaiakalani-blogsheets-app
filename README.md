@@ -1,4 +1,4 @@
-# vue-test-app
+# manaiakalani-blogsheets-app
 
 ## Project setup
 ```
