@@ -1,5 +1,6 @@
 <template>
 	<div>
+		<span> {{cellRange}} </span>
 		<div>
 			<input style="width:500px" v-model="sheetUrl" @keyup.enter="submit" placeholder="Please enter a URL">
 			<button @click="submit">submit</button>
@@ -20,11 +21,17 @@
 					</tr>
 				</thead>
 				<tbody>
-					<tr v-for="row in rows">
-						<td>
-							{{rows.indexOf(row)+1}}
-						</td>
-						<td v-for="col in row" class="sheetX-B">
+					<tr v-for="(row, index) in rows">
+						<th>
+							{{index+1}}
+						</th>
+						<td v-for="(col, index2) in row" 
+						@click="selectCell" 
+						class="sheetX-B" :class="{ looking : colInd[index2] == column && rowInd[index] >= rowNum, mouseHover : data-hover}" 
+						:data-col="colInd[index2]" 
+						:data-row="rowInd[index]"
+						@mouseover="hovering"
+						@mouseleave="leaving">
 							{{col}}
 						</td>
 					</tr>
@@ -45,6 +52,11 @@
 			sheetsList: [],
 			selectedSheet: '',
 			rows: [],
+			rowInd: ['1','2','3','4','5','6','7','8','9','10'],
+			colInd: ['A','B','C','D','E','F','G','H','I','J'],
+			cellRange: '',
+			column: '',
+			rowNum: ''
 			}
 		},
 		methods: {
@@ -81,6 +93,25 @@
 					});
 				});
 				
+			},
+			
+			selectCell (event){
+				event.preventDefault();
+				let col = event.currentTarget.getAttribute('data-col');
+				let row = event.currentTarget.getAttribute('data-row');
+				this.cellRange = col + row + ':' + col;
+				this.column  = col;
+				this.rowNum = parseInt(row);
+			},
+			
+			hovering(event){
+				event.preventDefault();
+				event.currentTarget.classList.add('mouseHover');
+			},
+			
+			leaving(event){
+				event.preventDefault();
+				event.currentTarget.classList.remove('mouseHover');
 			}
 		},
 		
@@ -109,4 +140,6 @@
 	.sheetX th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 20px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#ccc;color:#333;background-color:#f0f0f0;}
 	.sheetX .sheetX-H{font-weight:bold;background-color:#efefef;color:#333333;border-color:#9b9b9b;text-align:left;vertical-align:top}
 	.sheetX .sheetX-B{border-color:inherit;text-align:left;vertical-align:top}
+	.sheetX .looking{background-color:#e334ef}
+	.sheetX .mouseHover{background-color: #eeeee2}
 </style>
