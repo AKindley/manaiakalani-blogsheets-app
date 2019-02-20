@@ -1,23 +1,17 @@
-import Vue from 'vue'
+import Vue from 'vue/dist/vue.js'
+import VueRouter from 'vue-router'
 import routes from './routes'
 Vue.config.productionTip = false
-const app = new Vue({
-  el: '#app',
-  data: {
-    currentRoute: window.location.pathname
-  },
-  computed: {
-    ViewComponent () {
-		const matchingView = routes[this.currentRoute]
-		return matchingView //Listens for changes in this.auth2 
-			? () => import('./pages/' + matchingView + '.vue')
-			: () => import('./pages/404.vue')
-    }
-  },
-  render (h) {
-    return h(this.ViewComponent) //renders the returned component 
-  }
+Vue.use(VueRouter)
+
+const router = new VueRouter({
+	mode: 'history',
+	routes
 })
+
+const app = new Vue({
+  router: router,
+}).$mount('#app')
 
 window.init = function(){ // Need to work out how to persist (Not just on load)
 	gapi.load('client:auth2', function() {
@@ -25,6 +19,3 @@ window.init = function(){ // Need to work out how to persist (Not just on load)
 	});
 	
 }
-window.addEventListener('popstate', () => {
-  app.currentRoute = window.location.pathname
-})

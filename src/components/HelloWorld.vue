@@ -28,21 +28,11 @@ export default {
 		setTimeout(this.buggy, 4);
 	},
 	buggy () {
-		this.$root.currentRoute = "/";
-		window.history.pushState(
-			null,
-			routes["/"],
-			"/"
-		)		
+		this.$router.push('/');		
 	},
 	onSignIn (user){ //seems to listen constantly, can't change the value of auth2 while logged in.
 		const profile = user.getBasicProfile();
-		this.$root.currentRoute  = "/main";
-		window.history.pushState(
-			null,
-			routes["/main"],
-			"/main"
-		)
+		this.$router.push('/lobby');
 	}
   },
   mounted () {

@@ -1,17 +1,24 @@
 <template>
   <div id="app">
     <img alt="Vue logo" src="../assets/logo.png">
-	<Sheets />
+	<span>CLUSTERS</span>
+   
+	<button v-for="cluster in clusters" @click="clusterGo(cluster)">{{cluster}}</button>
   </div>
 </template>
 <script>
-import HelloWorld from '../components/HelloWorld.vue'
-import Sheets from '../components/Sheets.vue'
+
 export default {
   name: 'app',
-  components: {
-    HelloWorld,
-	Sheets
+  data () {
+	  return {
+		  clusters: ['ABC', 'XYZ', 'EEE']
+	  }
+  },
+  methods: {
+	clusterGo (cluster) {
+		this.$router.push('/lobby/' + cluster);
+	}
   }
 }
 

@@ -5,7 +5,7 @@
 			<input style="width:500px" v-model="sheetUrl" @keyup.enter="submit" placeholder="Please enter a URL">
 			<button @click="submit">submit</button>
 			<select v-model="selectedSheet">
-				<option v-for="sheet in sheetsList">
+				<option :key="`${sheet}`" v-for="sheet in sheetsList">
 					{{sheet}}
 				</option>
 			</select>
@@ -15,19 +15,19 @@
 			<table class="sheetX">
 				<thead>
 					<tr>
-						<th v-for="letter in ['','A','B','C','D','E','F','G','H','I','J']" class="sheetX-H">
+						<th :key="`col-${letter}`" v-for="letter in ['','A','B','C','D','E','F','G','H','I','J']" class="sheetX-H">
 						{{letter}}
 						</th>
 					</tr>
 				</thead>
 				<tbody>
-					<tr v-for="(row, index) in rows">
+					<tr :key="`row-${index}`" v-for="(row, index) in rows">
 						<th>
 							{{index+1}}
 						</th>
-						<td v-for="(col, index2) in row" 
+						<td :key="`row-${index}-col-${index2}`" v-for="(col, index2) in row" 
 						@click="selectCell" 
-						class="sheetX-B" :class="{ looking : colInd[index2] == column && rowInd[index] >= rowNum, mouseHover : data-hover}" 
+						class="sheetX-B" :class="{ looking : colInd[index2] == column && rowInd[index] >= rowNum }" 
 						:data-col="colInd[index2]" 
 						:data-row="rowInd[index]"
 						@mouseover="hovering"

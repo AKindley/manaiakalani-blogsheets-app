@@ -1,17 +1,22 @@
 <template>
   <div id="app">
     <img alt="Vue logo" src="../assets/logo.png">
-	<Sheets />
+    <span>SHEETS</span>
+	<button @click="sheetsGo">Sheet1/Add a sheet</button>
   </div>
 </template>
 <script>
 import HelloWorld from '../components/HelloWorld.vue'
-import Sheets from '../components/Sheets.vue'
+
 export default {
   name: 'app',
   components: {
-    HelloWorld,
-	Sheets
+    HelloWorld
+  },
+  methods: {
+	sheetsGo () {
+		this.$router.push(window.location.pathname + '/sheet1');
+	}
   }
 }
 
