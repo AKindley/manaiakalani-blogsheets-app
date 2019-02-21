@@ -1,36 +1,39 @@
 <template>
-  <div id="app">
-    <img alt="Vue logo" src="../assets/logo.png">
-	<span>CLUSTERS</span>
-   
-	<button v-for="cluster in clusters" @click="clusterGo(cluster)">{{cluster}}</button>
+  <div>
+	<button @click="goBack" style="float:left">BACK</button>
+    <img alt="Vue logo" src="../assets/logo.png"><br>
+	<span>CLUSTERS</span><br>
+	<button @click="add">ADD CLUSTER</button>
+	<ClusterDiv v-for="group in groups" :key="group.name" :cluster="group"/>
   </div>
 </template>
 <script>
-
+import ClusterDiv from '../components/ClusterDiv.vue'
 export default {
-  name: 'app',
-  data () {
-	  return {
-		  clusters: ['ABC', 'XYZ', 'EEE']
-	  }
+	name: 'mainpage',
+	components: {
+		ClusterDiv
+	},
+	data () {
+		return {
+			groups: [
+				{name: 'Manaiakalani is cool', twitter: 'manaiakalani@', numSheets: 20, error: false},
+				{name: "Me", twitter: 'me@', numSheets: 50, error: true, errorMsg: 'stuff went bad'}
+			]
+		}
   },
   methods: {
-	clusterGo (cluster) {
-		this.$router.push('/lobby/' + cluster);
-	}
+		add (event) {
+			event.preventDefault();
+			this.$router.push(window.location.pathname + '/add');
+		},
+		goBack (event){
+			event.preventDefault();
+			this.$router.go(-1);
+		}
   }
 }
 
 </script>
 
-<style>
-#app {
-  font-family: 'Avenir', Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
-}
-</style>
+

@@ -12,7 +12,7 @@
 		</div>
 
 		<div>
-			<table class="sheetX">
+			<table v-if="rows.length > 0" class="sheetX">
 				<thead>
 					<tr>
 						<th :key="`col-${letter}`" v-for="letter in ['','A','B','C','D','E','F','G','H','I','J']" class="sheetX-H">

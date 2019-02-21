@@ -15,12 +15,14 @@ export default [
 },
 {
 	path: '/lobby/:cluster',
-	component: Cluster
+	component: Cluster,
+	props: true
 	
 },
 {
 	path: '/lobby/:cluster/:sheet',
-	component: Main
+	component: Main,
+	props: true
 },
 {
 	path: '*',

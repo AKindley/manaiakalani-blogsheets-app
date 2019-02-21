@@ -1,29 +1,24 @@
 <template>
-  <div id="app">
+  <div>
+	<button @click="goBack" style="float:left">BACK</button>
     <img alt="Vue logo" src="../assets/logo.png">
 	<Sheets />
   </div>
 </template>
 <script>
-import HelloWorld from '../components/HelloWorld.vue'
 import Sheets from '../components/Sheets.vue'
 export default {
-  name: 'app',
+  name: 'sheets',
   components: {
-    HelloWorld,
 	Sheets
+  },
+  methods: {
+		goBack(event){
+			event.preventDefault();
+			this.$router.go(-1);
+		}
   }
 }
 
 </script>
 
-<style>
-#app {
-  font-family: 'Avenir', Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
-}
-</style>

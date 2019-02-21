@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div>
     <img alt="Vue logo" src="../assets/logo.png">
     <HelloWorld msg="Vue Test App"/>
   </div>
@@ -8,7 +8,7 @@
 import HelloWorld from '../components/HelloWorld.vue'
 
 export default {
-  name: 'app',
+  name: 'home',
   components: {
     HelloWorld
   }
@@ -22,7 +22,22 @@ export default {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
+  background-color:white;
   color: #2c3e50;
-  margin-top: 60px;
+  width:800px;
+  margin:auto;
+  min-height:100%;
+  box-shadow: 0px 0px 30px 5px black;
+}
+
+html {
+	height:100%;
+}
+
+body {
+	height:100%;
+	background-color: #1c43ab;
+	margin-top:0px;
+	margin-bottom:0px;
 }
 </style>
