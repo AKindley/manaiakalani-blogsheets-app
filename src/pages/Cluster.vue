@@ -2,18 +2,19 @@
   <div>
 	<button @click="goBack" style="float:left">BACK</button>
     <img alt="Vue logo" src="../assets/logo.png"><br>
-	<div v-if="cluster !== 'add'">
-		<span>Name: {{groupSel.name}}</span><br>
-		<span>Twitter: {{groupSel.twitter}}</span><br>
-		<span>Number of sheets: {{groupSel.numSheets}}</span><br>
-		<button @click="sheetsGo">Sheet1/Add a sheet</button>
-	</div>
-	<div v-else>
+	<div>
+		<button @click="update">UPDATE</button><br>
 		<span> Cluster Name: </span><br>
 		<input v-model="clusterName" placeholder="name..."><br>
 		<span> Twitter Handle: </span><br>
-		<input v-model="clusterTwitter" placeholder="twitter..."><br>
+		<input v-model="clusterTwitter" placeholder="twitter..."><br>	
+	<div v-if="cluster !== 'add'">
+		<span>Number of sheets: {{groups.numSheets}}</span><br>
+		<button @click="sheetsGo">Sheet1/Add a sheet</button>
+	</div>
+	<div v-else>
 		<button @click="submitMe">Submit</button>
+	</div>
 	</div>
   </div>
 </template>
@@ -24,18 +25,18 @@ export default {
   props: ['cluster'],
   data () {
 	return {
-		groups: [
-			{name: 'Manaiakalani is cool', twitter: 'manaiakalani@', numSheets: 20, error: false},
-			{name: "Me", twitter: 'me@', numSheets: 50, error: true, errorMsg: 'stuff went bad'}
-		],
+		groups: {},
 		clusterName: '',
 		clusterTwitter: ''
 	}
   },
   computed: {
 	groupSel: function () {
-		let index = this.groups.findIndex(x => x.name === decodeURI(this.cluster));
-		return this.groups[index];
+		let uri = 'http://localhost:4000/entries/edit/' + this.cluster;
+		this.axios.get(uri).then((response) => {
+			console.log(response)
+			this.groups = response.data;
+		});		
 	}
   },
   methods: {
@@ -44,13 +45,41 @@ export default {
 	},
 	submitMe (event) {
 		event.preventDefault();
-		console.log('Your Cluster is: ' + this.clusterName);
-		console.log('Your Twitter Handle is: ' + this.clusterTwitter);
+		/*console.log('Your Cluster is: ' + this.clusterName);
+		console.log('Your Twitter Handle is: ' + this.clusterTwitter);*/
+		let uri = 'http://localhost:4000/entries/add';
+		let testThing = {};
+		testThing.name = this.clusterName;
+		testThing.twitter = this.clusterTwitter;
+		testThing.numSheets = 2;
+		this.axios.post(uri, testThing).then((response) => {
+			console.log(response)
+		});
 		this.$router.go(-1);
 	},
 	goBack () {
 		this.$router.go(-1);
+	},
+	update (event) {
+		event.preventDefault();
+		let uri = 'http://localhost:4000/entries/update/' + this.cluster;
+		let testThing = this.groups;
+		this.axios.post(uri, testThing).then((response) => {
+			console.log(response);
+		});
+		
 	}
+  },
+  mounted () {
+	  if (this.cluster !== 'add') {
+		let uri = 'http://localhost:4000/entries/edit/' + this.cluster;
+		this.axios.get(uri).then((response) => {
+			console.log(response)
+			this.groups = response.data;
+			this.clusterName = this.groups.name;
+			this.clusterTwitter = this.groups.twitter;
+		});				
+	  }
   }
 }
 

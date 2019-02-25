@@ -1,8 +1,12 @@
 import Vue from 'vue/dist/vue.js'
 import VueRouter from 'vue-router'
 import routes from './routes'
+import axios from 'axios'
+import VueAxios from 'vue-axios'
+
 Vue.config.productionTip = false
-Vue.use(VueRouter)
+Vue.use(VueRouter);
+Vue.use(VueAxios, axios);
 
 const router = new VueRouter({
 	mode: 'history',
@@ -11,7 +15,7 @@ const router = new VueRouter({
 
 const app = new Vue({
   router: router,
-}).$mount('#app')
+}).$mount('#app');
 
 window.init = function(){ // Need to work out how to persist (Not just on load)
 	gapi.load('client:auth2', function() {
