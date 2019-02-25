@@ -23,7 +23,7 @@
 			clusterLink (event) {
 				event.preventDefault();
 				let cName = encodeURIComponent(this.cluster.name);
-				this.$router.push(window.location.pathname + '/' + cName);
+				this.$router.push(window.location.pathname + '/' + this.cluster._id);
 			}
 		}
 		

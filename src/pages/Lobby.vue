@@ -16,10 +16,7 @@ export default {
 	},
 	data () {
 		return {
-			groups: [
-				{name: 'Manaiakalani is cool', twitter: 'manaiakalani@', numSheets: 20, error: false},
-				{name: "Me", twitter: 'me@', numSheets: 50, error: true, errorMsg: 'stuff went bad'}
-			]
+			groups: []
 		}
   },
   methods: {
@@ -31,6 +28,12 @@ export default {
 			event.preventDefault();
 			this.$router.go(-1);
 		}
+  },
+  mounted () {
+		let uri = 'http://localhost:4000/entries/';
+		this.axios.get(uri).then((response) => {
+			this.groups = response.data;
+		});
   }
 }
 
