@@ -118,13 +118,13 @@
 			
 			addSheet(event){
 				event.preventDefault();
-				let newSheet = {
+				var newSheet = {
 					name: this.selectedSheet,
 					range: this.cellRange,
 					spreadsheetId: this.curSheetId,
 					clusterId: this.ClusterId
 				};
-				if (this.$parent.sheetName === 'add'){
+				if (this.SheetId === 'add'){
 					let uri = 'http://localhost:4000/sheets/add';
 					this.axios.post(uri, newSheet).then((response) => {
 						console.log(response);
