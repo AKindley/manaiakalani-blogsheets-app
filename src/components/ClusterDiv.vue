@@ -4,7 +4,6 @@
 			<ul style="list-style-type:none;text-align:left;font-size:large;">
 				<li>Name: {{cluster.name}}</li>
 				<li>Twitter: {{cluster.twitter}}</li>
-				<li>Number of Sheets: {{cluster.numSheets}}</li>
 			</ul>
 		</div>
 		<div style="position:absolute;right:0;height:100%;width:50%;background-color:red" v-if="cluster.error">
@@ -22,7 +21,6 @@
 		methods:{
 			clusterLink (event) {
 				event.preventDefault();
-				let cName = encodeURIComponent(this.cluster.name);
 				this.$router.push(window.location.pathname + '/' + this.cluster._id);
 			}
 		}

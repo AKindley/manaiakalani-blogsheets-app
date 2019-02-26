@@ -2,13 +2,19 @@
   <div>
 	<button @click="goBack" style="float:left">BACK</button>
     <img alt="Vue logo" src="../assets/logo.png">
-	<Sheets />
+	<Sheets :SheetId="sheet" :ClusterId="cluster" ref="sheets"/>
   </div>
 </template>
 <script>
 import Sheets from '../components/Sheets.vue'
 export default {
   name: 'sheets',
+  props: ['cluster','sheet'],
+  data () {
+	  return {
+		  sheetInfo: {}
+	  }  
+  },
   components: {
 	Sheets
   },
@@ -16,8 +22,14 @@ export default {
 		goBack(event){
 			event.preventDefault();
 			this.$router.go(-1);
-		}
+		},	
+  },
+  mounted () {
+	  if (this.sheet !== 'add'){
+		  this.$refs.sheets.loadSheet();
+	  }
   }
+
 }
 
 </script>

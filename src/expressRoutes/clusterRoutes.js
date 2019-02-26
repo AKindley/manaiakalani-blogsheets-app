@@ -40,7 +40,6 @@ clusterRoutes.route('/update/:id').post(function (req, res) {
 		else {
 			cluster.name = req.body.name;
 			cluster.twitter = req.body.twitter;
-			cluster.numSheets = 2;
 			
 			cluster.save().then(cluster => {
 				res.json('Update complete');

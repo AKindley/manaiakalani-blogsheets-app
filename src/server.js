@@ -5,9 +5,9 @@ const express = require('express'),
 	cors = require('cors'),
 	mongoose = require('mongoose'),
 	clusterRoutes = require('./expressRoutes/clusterRoutes');
-	
+	sheetRoutes = require('./expressRoutes/sheetRoutes')
 	mongoose.Promise = global.Promise;
-	mongoose.connect('mongodb://localhost/test2').then(
+	mongoose.connect('mongodb://localhost/test3').then(
 		() => {console.log('Database is connected')},
 		err => {console.log('Can not connect to the database' + err)}
 		);
@@ -17,6 +17,7 @@ const express = require('express'),
 	app.use(bodyParser.json());
 	app.use(cors());
 	app.use('/entries', clusterRoutes);
+	app.use('/sheets', sheetRoutes);
 	const port = process.env.PORT || 4000;
 	
 	const server = app.listen(port, function(){

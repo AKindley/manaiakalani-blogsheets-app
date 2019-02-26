@@ -4,6 +4,7 @@
 		<div>
 			<input style="width:500px" v-model="sheetUrl" @keyup.enter="submit" placeholder="Please enter a URL">
 			<button @click="submit">submit</button>
+			<button @click="addSheet">save sheet to cluster</button>
 			<select v-model="selectedSheet">
 				<option :key="`${sheet}`" v-for="sheet in sheetsList">
 					{{sheet}}
@@ -45,6 +46,7 @@
 <script>
 	export default {
 		name: 'Sheets',
+		props: ['SheetId','ClusterId'],
 		data(){
 			return{
 			sheetUrl: '',
@@ -112,6 +114,40 @@
 			leaving(event){
 				event.preventDefault();
 				event.currentTarget.classList.remove('mouseHover');
+			},
+			
+			addSheet(event){
+				event.preventDefault();
+				let newSheet = {
+					name: this.selectedSheet,
+					range: this.cellRange,
+					spreadsheetId: this.curSheetId,
+					clusterId: this.ClusterId
+				};
+				if (this.$parent.sheetName === 'add'){
+					let uri = 'http://localhost:4000/sheets/add';
+					this.axios.post(uri, newSheet).then((response) => {
+						console.log(response);
+					});
+				}
+				else{
+					let uri = 'http://localhost:4000/sheets/update/' + this.SheetId;
+					this.axios.post(uri, newSheet).then((response) => {
+						console.log(response);
+					});
+				}
+			},
+			loadSheet () {
+				let uri = 'http://localhost:4000/sheets/get/' + this.SheetId;
+				console.log(uri)
+				this.axios.get(uri).then((response) => {
+					console.log(response);
+					let temp = response.data;
+					this.curSheetId = temp.spreadsheetId;
+					this.cellRange = temp.range;
+					this.selectedSheet = temp.name;
+					this.sheetsList[0] = temp.name;
+				});
 			}
 		},
 		
@@ -130,7 +166,7 @@
 				});				
 			});
 			}
-		}
+		},
 	}
 </script>
 
