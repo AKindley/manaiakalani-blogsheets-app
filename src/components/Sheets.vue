@@ -1,19 +1,19 @@
 <template>
 	<div>
-		<span> {{cellRange}} </span>
-		<div>
-			<input style="width:500px" v-model="sheetUrl" @keyup.enter="submit" placeholder="Please enter a URL">
-			<button @click="submit">submit</button>
-			<button @click="addSheet">save sheet to cluster</button>
-			<select v-model="selectedSheet">
+		<div style="padding-top:40px;margin-left:40px;text-align:left">
+			<label>URL: <input style="width:500px;" v-model="sheetUrl" @keyup.enter="submit" placeholder="Please enter a URL"></label>
+			<button @click="submit">submit</button><br>
+			<label>Sheet Label: <input style="width:200px;margin-top:20px" v-model="sheetName" placeholder="Please enter a name(optional)"></label><br>
+			<label>Sheet: <select style="margin-top:20px;width:100px" v-model="selectedSheet">
 				<option :key="`${sheet}`" v-for="sheet in sheetsList">
 					{{sheet}}
 				</option>
-			</select>
+			</select></label>
+			<button style="float:right;margin-right:40px;margin-top:20px" @click="addSheet">save sheet to cluster</button>
 		</div>
 
-		<div>
-			<table v-if="rows.length > 0" class="sheetX">
+		<div style="margin-top:40px;margin-left:40px;margin-right:40px">
+			<table style="width:100%;overflow-x:scroll;margin-top:40px" v-if="rows.length > 0" class="sheetX">
 				<thead>
 					<tr>
 						<th :key="`col-${letter}`" v-for="letter in ['','A','B','C','D','E','F','G','H','I','J']" class="sheetX-H">
@@ -44,11 +44,13 @@
 </template>
 
 <script>
+	/* global gapi */
 	export default {
 		name: 'Sheets',
 		props: ['SheetId','ClusterId'],
 		data(){
 			return{
+			sheetName: '',
 			sheetUrl: '',
 			curSheetId: '',
 			sheetsList: [],
@@ -120,25 +122,26 @@
 				event.preventDefault();
 				var newSheet = {
 					name: this.selectedSheet,
+					title: this.sheetName,
 					range: this.cellRange,
 					spreadsheetId: this.curSheetId,
 					clusterId: this.ClusterId
 				};
 				if (this.SheetId === 'add'){
-					let uri = 'http://localhost:4000/sheets/add';
+					let uri = '/sheets/add';
 					this.axios.post(uri, newSheet).then((response) => {
 						console.log(response);
 					});
 				}
 				else{
-					let uri = 'http://localhost:4000/sheets/update/' + this.SheetId;
+					let uri = '/sheets/update/' + this.SheetId;
 					this.axios.post(uri, newSheet).then((response) => {
 						console.log(response);
 					});
 				}
 			},
 			loadSheet () {
-				let uri = 'http://localhost:4000/sheets/get/' + this.SheetId;
+				let uri = '/sheets/get/' + this.SheetId;
 				console.log(uri)
 				this.axios.get(uri).then((response) => {
 					console.log(response);
@@ -147,6 +150,8 @@
 					this.cellRange = temp.range;
 					this.selectedSheet = temp.name;
 					this.sheetsList[0] = temp.name;
+					this.sheetName = temp.title;
+					this.sheetUrl = 'https://docs.google.com/spreadsheets/d/' + temp.spreadsheetId;
 				});
 			}
 		},
@@ -172,10 +177,10 @@
 
 <style type="text/css">
 	.sheetX  {border-collapse:collapse;border-spacing:0;border-color:#ccc;margin:0px auto;}
-	.sheetX td{font-family:Arial, sans-serif;font-size:14px;padding:10px 20px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#ccc;color:#333;background-color:#fff;}
-	.sheetX th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 20px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#ccc;color:#333;background-color:#f0f0f0;}
-	.sheetX .sheetX-H{font-weight:bold;background-color:#efefef;color:#333333;border-color:#9b9b9b;text-align:left;vertical-align:top}
-	.sheetX .sheetX-B{border-color:inherit;text-align:left;vertical-align:top}
-	.sheetX .looking{background-color:#e334ef}
+	.sheetX td{font-family:Arial, sans-serif;font-size:10px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#ccc;color:#333;background-color:#fff;}
+	.sheetX th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#ccc;color:#333;background-color:#f0f0f0;}
+	.sheetX .sheetX-H{font-weight:bold;background-color:#efefef;color:#333333;border-color:#9b9b9b;vertical-align:top}
+	.sheetX .sheetX-B{border-color:inherit;text-align:center;}
+	.sheetX .looking{background-color:#728acc}
 	.sheetX .mouseHover{background-color: #eeeee2}
 </style>

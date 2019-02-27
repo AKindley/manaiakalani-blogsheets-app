@@ -30,7 +30,7 @@ export default {
 		}
   },
   mounted () {
-		let uri = 'http://localhost:4000/entries/';
+		let uri = '/entries/';
 		this.axios.get(uri).then((response) => {
 			this.groups = response.data;
 		});

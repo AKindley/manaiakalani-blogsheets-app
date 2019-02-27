@@ -18,6 +18,7 @@ export default {
   data(){
 	return{
 	myJson: json,
+	signedIn: false
 	}
   },
   methods: {
@@ -31,9 +32,19 @@ export default {
 		this.$router.push('/');		
 	},
 	onSignIn (user){ //seems to listen constantly, can't change the value of auth2 while logged in.
-		const profile = user.getBasicProfile();
-		this.$router.push('/lobby');
+		this.signedIn = true;
+		this.$root.signedIn = true;
 	}
+  },
+  watch:{
+	signedIn: function(){
+		if (this.$root.signedIn === true){
+			this.$router.push('/lobby');
+		}
+		else{
+			this.$router.push('/');
+		}
+	}  
   },
   mounted () {
 		gapi.signin2.render('googbutt', {scope: 'email profile openid https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly', onsuccess : this.onSignIn})

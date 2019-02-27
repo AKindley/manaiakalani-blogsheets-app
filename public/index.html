@@ -5,6 +5,13 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <link rel="icon" href="<%= BASE_URL %>favicon.ico">
+	<script>
+	function init () {
+		gapi.load('client:auth2', function() {
+		gapi.auth2.getAuthInstance({client_id: '1004381020845-kd42skbm4f5vnvmobhl64ifc82i6h2im.apps.googleusercontent.com', scope:'https://www.googleapis.com/auth/spreadsheets.readonly'});
+		});
+	}
+	</script>
 	<script src="https://apis.google.com/js/platform.js?onload=init"></script>
 	<meta name="google-signin-client_id" content="1004381020845-kd42skbm4f5vnvmobhl64ifc82i6h2im.apps.googleusercontent.com">
     <title>vue-test-app</title>

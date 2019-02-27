@@ -65,7 +65,7 @@ export default {
 	},
 	update (event) {
 		event.preventDefault();
-		let uri = 'http://localhost:4000/entries/update/' + this.cluster;
+		let uri = '/entries/update/' + this.cluster;
 		let testThing = this.groups;
 		testThing.name = this.clusterName;
 		testThing.twitter = this.clusterTwitter;
@@ -77,14 +77,14 @@ export default {
   },
   mounted () {
 	if (this.cluster !== 'add') {
-		let uri = 'http://localhost:4000/entries/edit/' + this.cluster;
+		let uri = '/entries/edit/' + this.cluster;
 		this.axios.get(uri).then((response) => {
 			console.log(response)
 			this.groups = response.data;
 			this.clusterName = this.groups.name;
 			this.clusterTwitter = this.groups.twitter;
 		});
-		let uri2 = 'http://localhost:4000/sheets/' + this.cluster;
+		let uri2 = '/sheets/' + this.cluster;
 		this.axios.get(uri2).then((response) => {
 			console.log(response);
 			this.clusterSheets = response.data;

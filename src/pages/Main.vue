@@ -1,7 +1,6 @@
 <template>
   <div>
 	<button @click="goBack" style="float:left">BACK</button>
-    <img alt="Vue logo" src="../assets/logo.png">
 	<Sheets :SheetId="sheet" :ClusterId="cluster" ref="sheets"/>
   </div>
 </template>

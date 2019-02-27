@@ -50,6 +50,7 @@ sheetRoutes.route('/update/:id').post(function (req, res) {
 		if (!sheet) return next (new Error('Could not load Document'));
 		else {
 			sheet.name = req.body.name;
+			sheet.title = req.body.title;
 			sheet.range = req.body.range;
 			sheet.clusterId = req.body.clusterId;
 			sheet.spreadsheetId = req.body.spreadsheetId;
