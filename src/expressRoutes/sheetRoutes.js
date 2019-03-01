@@ -1,10 +1,11 @@
 
-
+var secret = require('../secret.json');
+var apiKey = secret.API_KEY;
 var express = require('express');
 var app = express();
 var sheetRoutes = express.Router();
-
 var Sheet = require('../models/sheetStructure');
+const axios = require('axios');
 
 sheetRoutes.route('/add').post(function (req, res) {
 	var entry = new Sheet(req.body);
@@ -14,6 +15,23 @@ sheetRoutes.route('/add').post(function (req, res) {
 			}).catch(err => {
 				res.status(400).send('Unable to save to database');
 			});
+});
+
+sheetRoutes.route('/parse/:id').get(function (req, res){
+	Sheet.findById(req.params.id, function(err, sheet) {
+		if(err){
+			console.log(err);
+		}
+		else{
+			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/'+ sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
+			console.log(uri);
+			axios.get(uri).then((response) => {
+				res.json(response.data);
+			}).catch((error) => {
+				console.log(error);
+			});
+		}
+	});
 });
 
 sheetRoutes.route('/:id').get(function (req, res) {

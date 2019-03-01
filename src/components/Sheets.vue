@@ -14,6 +14,7 @@
 		</div>
 
 		<div style="margin-top:40px;margin-left:40px;margin-right:40px">
+			<button @click="processSheet">TEST ME</button>
 			<table style="width:100%;overflow-x:scroll;margin-top:40px" v-if="rows.length > 0" class="sheetX">
 				<thead>
 					<tr>
@@ -39,7 +40,7 @@
 					</tr>
 				</tbody>
 			</table>
-
+			<span v-for="values in sheetDATA">{{values}}</span>
 		</div>
 	</div>
 </template>
@@ -62,7 +63,8 @@
 			colInd: ['A','B','C','D','E','F','G','H','I','J'],
 			cellRange: '',
 			column: '',
-			rowNum: ''
+			rowNum: '',
+			sheetDATA: []
 			}
 		},
 		methods: {
@@ -163,6 +165,13 @@
 			},
 			editSheet () {
 				this.editing = !this.editing;
+			},
+			processSheet () {
+				let uri = '/sheets/parse/' + this.SheetId;
+				this.axios.get(uri).then((response) => {
+					console.log(response.data)
+					this.sheetDATA = response.data.values;
+				});
 			}
 		},
 		
