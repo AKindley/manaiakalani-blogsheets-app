@@ -1,4 +1,3 @@
-/* global gapi */
 
 import Vue from 'vue/dist/vue.js'
 import VueRouter from 'vue-router'
@@ -17,12 +16,12 @@ const router = new VueRouter({
 })
 
 new Vue({
-  router: router,
-  data () {
-	  return{
-		  signedIn: false
-	  }
-  }
+	router: router,
+	data () {
+		return{
+			signedIn: false
+		}
+	}
 }).$mount('#app');
 
 /*window.init = function(){ // Need to work out how to persist (Not just on load)

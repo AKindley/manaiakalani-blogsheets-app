@@ -1,15 +1,16 @@
 <template>
 	<div>
 		<div style="padding-top:40px;margin-left:40px;text-align:left">
-			<label>URL: <input style="width:500px;" v-model="sheetUrl" @keyup.enter="submit" placeholder="Please enter a URL"></label>
-			<button @click="submit">submit</button><br>
-			<label>Sheet Label: <input style="width:200px;margin-top:20px" v-model="sheetName" placeholder="Please enter a name(optional)"></label><br>
-			<label>Sheet: <select style="margin-top:20px;width:100px" v-model="selectedSheet">
+			<label>URL: <input style="width:500px;" v-model="sheetUrl" :disabled="!editing" placeholder="Please enter a URL"></label>
+			<button v-if="SheetId === 'add'" @click="submit">submit</button>
+			<button style="float:right;margin-right:40px" v-if="SheetId !== 'add'" @click="editSheet">{{editing ? 'CANCEL' : 'EDIT'}}</button><br>
+			<label>Sheet Label: <input style="width:200px;margin-top:20px" :disabled="!editing" v-model="sheetName" placeholder="Please enter a name(optional)"></label><br>
+			<label>Sheet: <select style="margin-top:20px;width:100px" :disabled="SheetId === 'add' ? '' : 'disabled'" v-model="selectedSheet">
 				<option :key="`${sheet}`" v-for="sheet in sheetsList">
 					{{sheet}}
 				</option>
 			</select></label>
-			<button style="float:right;margin-right:40px;margin-top:20px" @click="addSheet">save sheet to cluster</button>
+			<button v-if="editing" style="float:right;margin-right:40px;margin-top:20px" @click="addSheet">save sheet to cluster</button>
 		</div>
 
 		<div style="margin-top:40px;margin-left:40px;margin-right:40px">
@@ -50,6 +51,7 @@
 		props: ['SheetId','ClusterId'],
 		data(){
 			return{
+			editing: this.SheetId === 'add' ? true : false,
 			sheetName: '',
 			sheetUrl: '',
 			curSheetId: '',
@@ -101,16 +103,20 @@
 			
 			selectCell (event){
 				event.preventDefault();
-				let col = event.currentTarget.getAttribute('data-col');
-				let row = event.currentTarget.getAttribute('data-row');
-				this.cellRange = col + row + ':' + col;
-				this.column  = col;
-				this.rowNum = parseInt(row);
+				if (this.editing) {
+					let col = event.currentTarget.getAttribute('data-col');
+					let row = event.currentTarget.getAttribute('data-row');
+					this.cellRange = col + row + ':' + col;
+					this.column  = col;
+					this.rowNum = parseInt(row);
+				}
 			},
 			
 			hovering(event){
 				event.preventDefault();
-				event.currentTarget.classList.add('mouseHover');
+				if (this.editing){
+					event.currentTarget.classList.add('mouseHover');
+				}
 			},
 			
 			leaving(event){
@@ -120,6 +126,7 @@
 			
 			addSheet(event){
 				event.preventDefault();
+				if (this.selectedSheet && this.cellRange && this.curSheetId && this.ClusterId){
 				var newSheet = {
 					name: this.selectedSheet,
 					title: this.sheetName,
@@ -129,30 +136,33 @@
 				};
 				if (this.SheetId === 'add'){
 					let uri = '/sheets/add';
-					this.axios.post(uri, newSheet).then((response) => {
-						console.log(response);
-					});
+					this.axios.post(uri, newSheet);
 				}
 				else{
 					let uri = '/sheets/update/' + this.SheetId;
-					this.axios.post(uri, newSheet).then((response) => {
-						console.log(response);
-					});
+					this.axios.post(uri, newSheet);
+				}
+				}
+				else{
+					window.alert("Please fill in all required fields!");
 				}
 			},
 			loadSheet () {
 				let uri = '/sheets/get/' + this.SheetId;
-				console.log(uri)
 				this.axios.get(uri).then((response) => {
-					console.log(response);
 					let temp = response.data;
 					this.curSheetId = temp.spreadsheetId;
 					this.cellRange = temp.range;
 					this.selectedSheet = temp.name;
 					this.sheetsList[0] = temp.name;
 					this.sheetName = temp.title;
+					this.column = this.cellRange[0];
+					this.rowNum = parseInt(this.cellRange[1]);
 					this.sheetUrl = 'https://docs.google.com/spreadsheets/d/' + temp.spreadsheetId;
 				});
+			},
+			editSheet () {
+				this.editing = !this.editing;
 			}
 		},
 		
@@ -182,5 +192,5 @@
 	.sheetX .sheetX-H{font-weight:bold;background-color:#efefef;color:#333333;border-color:#9b9b9b;vertical-align:top}
 	.sheetX .sheetX-B{border-color:inherit;text-align:center;}
 	.sheetX .looking{background-color:#728acc}
-	.sheetX .mouseHover{background-color: #eeeee2}
+	.sheetX .mouseHover{background-color: #eeeee2;cursor: pointer;}
 </style>

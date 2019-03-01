@@ -28,6 +28,7 @@ export default {
   margin:auto;
   min-height:100%;
   box-shadow: 0px 0px 30px 5px black;
+  padding-bottom: 40px;
 }
 
 html {
