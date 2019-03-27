@@ -1,5 +1,5 @@
 import Home from './pages/Home.vue'
-import Main from './pages/Main.vue'
+import Sheet from './pages/Sheet.vue'
 import Lobby from './pages/Lobby.vue'
 import Cluster from './pages/Cluster.vue'
 import Fail from './pages/404.vue'
@@ -21,7 +21,7 @@ export default [
 },
 {
 	path: '/lobby/:cluster/:sheet',
-	component: Main,
+	component: Sheet,
 	props: true
 },
 {

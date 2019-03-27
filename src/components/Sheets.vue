@@ -119,6 +119,7 @@
 				if (this.SheetId === 'add'){
 					let uri = '/sheets/add';
 					this.axios.post(uri, newSheet);
+					this.$router.go(-1);
 				}
 				else{
 					let uri = '/sheets/update/' + this.SheetId;
