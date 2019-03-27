@@ -23,7 +23,7 @@ sheetRoutes.route('/parse/:id').get(function (req, res){
 			console.log(err);
 		}
 		else{
-			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/'+ sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
+			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
 			console.log(uri);
 			axios.get(uri).then((response) => {
 				res.json(response.data);
@@ -42,6 +42,41 @@ sheetRoutes.route('/:id').get(function (req, res) {
 		}
 		else {
 			res.json(sheet);
+		}
+	});
+});
+sheetRoutes.route('/getSpreadsheet/:id').get(function (req, res){
+	let spreadsheetId = req.params.id;
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '?key=' + apiKey;
+	axios.get(uri).then((response) => {
+		res.json(response.data);
+	}).catch((error) => {
+		console.log(error);
+	});
+});
+
+sheetRoutes.route('/getSheet/:id/:name').get(function (req, res){
+	let id = req.params.id;
+	let name = req.params.name;
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + name + '!A1:J10?key=' + apiKey;
+	axios.get(uri).then((response) => {
+		res.json(response.data);
+	}).catch((error) => {
+		console.log(error);
+	});
+});
+sheetRoutes.route('/loadSheet/:id').get(function (req, res){
+	Sheet.findById(req.params.id, function(err, sheet) {
+		if(err){
+			console.log(err);
+		}
+		else {
+			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!A1:J10?key=' + apiKey;
+			axios.get(uri).then((response) => {
+				res.json(response.data);
+			}).catch((error) => {
+				console.log(error);
+			});
 		}
 	});
 });

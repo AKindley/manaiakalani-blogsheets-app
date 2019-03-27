@@ -5,7 +5,7 @@
 			<button v-if="SheetId === 'add'" @click="submit">submit</button>
 			<button style="float:right;margin-right:40px" v-if="SheetId !== 'add'" @click="editSheet">{{editing ? 'CANCEL' : 'EDIT'}}</button><br>
 			<label>Sheet Label: <input style="width:200px;margin-top:20px" :disabled="!editing" v-model="sheetName" placeholder="Please enter a name(optional)"></label><br>
-			<label>Sheet: <select style="margin-top:20px;width:100px" :disabled="SheetId === 'add' ? '' : 'disabled'" v-model="selectedSheet">
+			<label>Sheet: <select style="margin-top:20px;width:100px" :disabled="!editing" v-model="selectedSheet">
 				<option :key="`${sheet}`" v-for="sheet in sheetsList">
 					{{sheet}}
 				</option>
@@ -40,13 +40,13 @@
 					</tr>
 				</tbody>
 			</table>
-			<span v-for="values in sheetDATA">{{values}}</span>
+			<span :key="index" v-for="(values,index) in sheetDATA">{{values[0]}} </span>
 		</div>
 	</div>
 </template>
 
 <script>
-	/* global gapi */
+	
 	export default {
 		name: 'Sheets',
 		props: ['SheetId','ClusterId'],
@@ -72,35 +72,15 @@
 				event.preventDefault();
 				let exp = new RegExp('/spreadsheets/d/([a-zA-Z0-9-_]+)');
 				this.curSheetId = this.sheetUrl.match(exp)[1];
-				/*this.embedUrl = ('https://docs.google.com/spreadsheets/d/' + result + '/pubhtml?headers=true');
-				console.log(this.embedUrl);
-					<div>
-						<iframe :src="this.embedUrl" width="400px" height="300px"></iframe>
-					</div>*/
-				var self = this;
-				gapi.load('client', function(){
-				gapi.client.load('https://sheets.googleapis.com/$discovery/rest?version=v4').then(() =>{
-					gapi.client.sheets.spreadsheets.get({spreadsheetId: self.curSheetId
-					}).then(function(response) {
-						let sheets = response.result.sheets;
-						let sheet;
-						self.sheetsList = [];
-						for (sheet in sheets){
-							self.sheetsList.push(sheets[sheet].properties.title)
-						}
-						self.selectedSheet = self.sheetsList[0];
-					}); 
-						
-					/*gapi.client.sheets.spreadsheets.values.get({
-						spreadsheetId: self.curSheetId,
-						range: 'A1:J10'
-					}).then(function (response) {
-						var result = response.result;
-						self.rows = result.values;
-						});*/
-					});
+				let uri = '/sheets/getSpreadsheet/' + this.curSheetId;
+				this.axios.get(uri).then((response) => {
+					let sheets = response.data.sheets;
+					let sheet;
+					for (sheet in sheets){
+						this.sheetsList.push(sheets[sheet].properties.title)
+					}
+					this.selectedSheet = this.sheetsList[0];
 				});
-				
 			},
 			
 			selectCell (event){
@@ -169,7 +149,6 @@
 			processSheet () {
 				let uri = '/sheets/parse/' + this.SheetId;
 				this.axios.get(uri).then((response) => {
-					console.log(response.data)
 					this.sheetDATA = response.data.values;
 				});
 			}
@@ -177,18 +156,18 @@
 		
 		watch: {
 			selectedSheet: function() {
-				var self = this;
-				gapi.load('client', function(){
-				gapi.client.load('https://sheets.googleapis.com/$discovery/rest?version=v4').then(() =>{
-					gapi.client.sheets.spreadsheets.values.get({
-						spreadsheetId: self.curSheetId,
-						range: (self.selectedSheet + '!A1:J10')
-					}).then(function(response) {
-						var result = response.result;
-						self.rows = result.values;
+				if (this.SheetId !== 'add'){ 
+					let uri = '/sheets/loadSheet/' + this.SheetId;
+					this.axios.get(uri).then((response) => {
+						this.rows = response.data.values;
 					});
-				});				
-			});
+				}
+				else{
+					let uri = '/sheets/getSheet/' + this.curSheetId + '/' + this.selectedSheet;
+					this.axios.get(uri).then((response) => {
+						this.rows = response.data.values;
+					});
+				}
 			}
 		},
 	}
