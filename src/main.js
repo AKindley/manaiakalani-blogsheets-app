@@ -24,10 +24,3 @@ new Vue({
 	}
 }).$mount('#app');
 
-/*window.init = function(){ // Need to work out how to persist (Not just on load)
-	console.log("This happened")
-	gapi.load('client:auth2', function() {
-	gapi.auth2.init({client_id: '1004381020845-kd42skbm4f5vnvmobhl64ifc82i6h2im.apps.googleusercontent.com', scope:'https://www.googleapis.com/auth/spreadsheets.readonly'});
-	});
-	
-}*/

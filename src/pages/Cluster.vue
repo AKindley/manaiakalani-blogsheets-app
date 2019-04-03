@@ -40,15 +40,7 @@ export default {
 		clusterSheets: {}
 	}
   },
-  /*computed: {
-	groupSel: function () {
-		let uri = 'http://localhost:4000/entries/edit/' + this.cluster;
-		this.axios.get(uri).then((response) => {
-			console.log(response)
-			this.groups = response.data;
-		});		
-	}
-  },*/
+  
   methods: {
 	sheetsGo () {
 		this.$router.push(window.location.pathname + '/add');

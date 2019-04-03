@@ -94,7 +94,12 @@ sheetRoutes.route('/get/:id').get(function (req, res) {
 sheetRoutes.route('/edit/:id').get(function (req, res) {
 	var id = req.params.id;
 	Sheet.findById(id, function(err, sheet){
-		res.json(sheet);
+		if(err){
+			console.log(err);
+		}
+		else{
+			res.json(sheet);
+		}
 	});
 });
 
