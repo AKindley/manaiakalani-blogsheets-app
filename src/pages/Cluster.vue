@@ -50,8 +50,6 @@ export default {
 	},
 	submitMe (event) {
 		event.preventDefault();
-		/*console.log('Your Cluster is: ' + this.clusterName);
-		console.log('Your Twitter Handle is: ' + this.clusterTwitter);*/
 		let uri = 'http://localhost:4000/entries/add';
 		let testThing = {};
 		testThing.name = this.clusterName;
