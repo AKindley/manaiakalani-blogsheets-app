@@ -5,7 +5,25 @@ var express = require('express');
 var app = express();
 var sheetRoutes = express.Router();
 var Sheet = require('../models/sheetStructure');
+let Parser = require('rss-parser');
+var parser = new Parser();
 const axios = require('axios');
+
+async function processValues(values){
+	let blogItems = [];
+	for (const item of values) {
+		console.log(item[0]);
+		await parser.parseURL('http://' + item[0] + '/feeds/posts/default?rss', function(error, feed){
+			if(error){
+				console.log(error);
+			}
+			else{
+				blogItems.push(feed.items[0]);
+			}
+		});
+	}
+	console.log(blogItems);
+}
 
 sheetRoutes.route('/add').post(function (req, res) {
 	var entry = new Sheet(req.body);
@@ -15,6 +33,22 @@ sheetRoutes.route('/add').post(function (req, res) {
 			}).catch(err => {
 				res.status(400).send('Unable to save to database');
 			});
+});
+
+sheetRoutes.route('/rss/:id').get(function (req, res){
+	let id = req.params.id;
+	Sheet.findById(id, function (err, sheet){
+		if(err){
+			console.log(err);
+		}
+		else{
+			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C15' /*+ sheet.range*/ + '?key=' + apiKey;
+			axios.get(uri).then((response) => {
+				let values = response.data.values;
+				processValues(values);
+			})
+		}
+	});
 });
 
 sheetRoutes.route('/parse/:id').get(function (req, res){

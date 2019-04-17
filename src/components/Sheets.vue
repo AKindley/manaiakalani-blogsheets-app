@@ -40,7 +40,7 @@
 					</tr>
 				</tbody>
 			</table>
-			<span :key="index" v-for="(values,index) in sheetDATA">{{values[0]}} </span>
+			<span :key="index" v-for="(values,index) in rows">{{values[0]}} </span>
 		</div>
 	</div>
 </template>
@@ -148,9 +148,12 @@
 				this.editing = !this.editing;
 			},
 			processSheet () {
-				let uri = '/sheets/parse/' + this.SheetId;
+				/*let uri = '/sheets/parse/' + this.SheetId;
 				this.axios.get(uri).then((response) => {
 					this.sheetDATA = response.data.values;
+				});*/
+				this.axios.get('/sheets/rss/' + this.SheetId).then((response) => {
+					console.log(response);
 				});
 			}
 		},
