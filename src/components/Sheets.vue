@@ -147,11 +147,12 @@
 			editSheet () {
 				this.editing = !this.editing;
 			},
-			processSheet () {
+			processSheet (event) {
 				/*let uri = '/sheets/parse/' + this.SheetId;
 				this.axios.get(uri).then((response) => {
 					this.sheetDATA = response.data.values;
 				});*/
+				event.preventDefault();
 				this.axios.get('/sheets/rss/' + this.SheetId).then((response) => {
 					console.log(response);
 				});

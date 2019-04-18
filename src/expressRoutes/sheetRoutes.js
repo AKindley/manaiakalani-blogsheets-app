@@ -9,20 +9,31 @@ let Parser = require('rss-parser');
 var parser = new Parser();
 const axios = require('axios');
 
-async function processValues(values){
+async function rssParse(uri, itemArray){
+	await parser.parseURL(uri + '/feeds/posts/default?rss', async function(error, feed){
+		if (error){
+			console.log(error);
+		}
+		else{
+			await itemArray.push(feed.items[0].title);
+		}
+	});
+}
+async function processValues(values, res){
 	let blogItems = [];
+	let i = 0
 	for (const item of values) {
-		console.log(item[0]);
-		await parser.parseURL('http://' + item[0] + '/feeds/posts/default?rss', function(error, feed){
-			if(error){
-				console.log(error);
-			}
-			else{
-				blogItems.push(feed.items[0]);
-			}
-		});
+		let uri = item[0];
+		if(!uri.match(/^[a-zA-Z]+:\/\//)){
+			uri = 'http://' + uri;
+		}
+		await rssParse(uri, blogItems);
+		console.log(i);
+		console.log(blogItems[i-1]);
+		i++;
 	}
 	console.log(blogItems);
+	res.json(blogItems);
 }
 
 sheetRoutes.route('/add').post(function (req, res) {
@@ -42,11 +53,11 @@ sheetRoutes.route('/rss/:id').get(function (req, res){
 			console.log(err);
 		}
 		else{
-			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C15' /*+ sheet.range*/ + '?key=' + apiKey;
+			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*+ sheet.range*/ + '?key=' + apiKey;
 			axios.get(uri).then((response) => {
 				let values = response.data.values;
-				processValues(values);
-			})
+				processValues(values, res);
+			});
 		}
 	});
 });
