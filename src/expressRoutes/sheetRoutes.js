@@ -10,29 +10,28 @@ var parser = new Parser();
 const axios = require('axios');
 
 async function rssParse(uri, itemArray){
-	await parser.parseURL(uri + '/feeds/posts/default?rss', async function(error, feed){
-		if (error){
-			console.log(error);
-		}
-		else{
-			await itemArray.push(feed.items[0].title);
-		}
+	return new Promise(await function(resolve, reject) {
+		parser.parseURL(uri + '/feeds/posts/default?rss', async function(error, feed){
+			if (error){
+				console.log(error);
+				reject(Error(error));
+			}
+			else{
+				itemArray.push(feed.items[0].title);
+				resolve('Success');
+			}
+		})
 	});
 }
 async function processValues(values, res){
 	let blogItems = [];
-	let i = 0
-	for (const item of values) {
-		let uri = item[0];
+	for (index = 0; index < values.length; index++) {
+		let uri = values[index][0];
 		if(!uri.match(/^[a-zA-Z]+:\/\//)){
 			uri = 'http://' + uri;
 		}
 		await rssParse(uri, blogItems);
-		console.log(i);
-		console.log(blogItems[i-1]);
-		i++;
 	}
-	console.log(blogItems);
 	res.json(blogItems);
 }
 
