@@ -32,7 +32,8 @@ async function processValues(values, res){
 		}
 		await rssParse(uri, blogItems);
 	}
-	res.json(blogItems);
+	res.json(blogItems); //This is the point where where we'll implement the twitter interaction and begin creating and checking database entries. 
+						//Must check for first posts, as well as performing our date and existing post checks
 }
 
 sheetRoutes.route('/add').post(function (req, res) {
@@ -52,8 +53,8 @@ sheetRoutes.route('/rss/:id').get(function (req, res){
 			console.log(err);
 		}
 		else{
-			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*+ sheet.range*/ + '?key=' + apiKey;
-			axios.get(uri).then((response) => {
+			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*+ sheet.range*/ + '?key=' + apiKey; //Edit this for sheets once done testing, range is fixed
+			axios.get(uri).then((response) => { //Check for duplicate blogs in the database here, the google sheets call is unnecessary if performing a check over the database itself
 				let values = response.data.values;
 				processValues(values, res);
 			});

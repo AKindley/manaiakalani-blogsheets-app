@@ -10,3 +10,8 @@ var sheetSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Sheet', sheetSchema);
+/*	name: String,
+	title: String,
+	spreadsheetId: String,
+	range: String,
+	cluster: {type: mongoose.Schema.Types.ObjectId, ref: 'Cluster'} */
