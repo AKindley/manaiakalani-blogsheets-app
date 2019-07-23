@@ -40,7 +40,6 @@
 					</tr>
 				</tbody>
 			</table>
-			<span :key="index" v-for="(values,index) in rows">{{values[0]}} </span>
 		</div>
 	</div>
 </template>

@@ -17,7 +17,7 @@ async function rssParse(uri, itemArray){
 				reject(Error(error));
 			}
 			else{
-				itemArray.push(feed.items[0].title);
+				itemArray.push(feed.items[0].title + ' ' + feed.items[0].link + ' ' + feed.items[0].contentSnippet);
 				resolve('Success');
 			}
 		})
