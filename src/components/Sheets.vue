@@ -113,7 +113,7 @@
 					title: this.sheetName,
 					range: this.cellRange,
 					spreadsheetId: this.curSheetId,
-					clusterId: this.ClusterId
+					cluster: this.ClusterId
 				};
 				if (this.SheetId === 'add'){
 					let uri = '/sheets/add';
@@ -152,7 +152,7 @@
 					this.sheetDATA = response.data.values;
 				});*/
 				event.preventDefault();
-				this.axios.get('/sheets/rss/' + this.SheetId).then((response) => {
+				this.axios.get('/sheets/rss/' + this.SheetId + '/' + this.ClusterId).then((response) => {
 					console.log(response);
 				});
 			}

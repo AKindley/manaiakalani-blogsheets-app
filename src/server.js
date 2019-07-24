@@ -7,7 +7,7 @@ const express = require('express'),
 	clusterRoutes = require('./expressRoutes/clusterRoutes');
 	sheetRoutes = require('./expressRoutes/sheetRoutes')
 	mongoose.Promise = global.Promise;
-	mongoose.connect('mongodb://localhost/test3').then(
+	mongoose.connect('mongodb://localhost/test4').then(
 		() => {console.log('Database is connected')},
 		err => {console.log('Can not connect to the database' + err)}
 		);
