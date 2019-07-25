@@ -11,7 +11,8 @@ let Parser = require('rss-parser');
 var parser = new Parser();
 const axios = require('axios');
 
-async function rssParse(uri, itemArray, cluster){ //This thing returns a promise, don't touch any of the async/await stuff unless you know what you're doing thanks
+
+async function rssParse(uri){ //This thing returns a promise, don't touch any of the async/await stuff unless you know what you're doing thanks
 	return new Promise(await function(resolve, reject) {
 		rssUrl = uri + '/feeds/posts/default?rss'; //rss url incase we need it for later meddling
 		parser.parseURL(rssUrl, async function(error, feed){ //rss-parse npm module, I think it's meant to be async, don't touch it
@@ -20,50 +21,55 @@ async function rssParse(uri, itemArray, cluster){ //This thing returns a promise
 				reject(Error(error));
 			}
 			else{
-				var blog = new Blog({ //Blog object for mongo, leave out post ref
-					baseUrl: uri,
-					dateAdded: Date.now(),
-					active: true,
-					cluster: cluster,
-				});
-				var post = new Post({//Post object created, leave out blog ref
-					url : feed.items[0].link,
-					title: feed.items[0].title,
-					date: feed.items[0].isoDate,
-					content: feed.items[0].contentSnippet
-				});
-				blog.post = post; //Blog and post reference each other before saving
-				post.blog = blog; //Ids are generated when the object is created
-				blog.save(function (err) {
-					if (err) return console.log(err); //Need define situations for first load and actual processing so we're not trying to save new blogs to the database everytime.
-					//Don't use this for periodic checks until the separate flows are defined, important to both phases of sheet checking. 
-					post.save(function (err){
-						if (err) return console.log(err);
-					});
-				});
-				itemArray.push(feed.items[0].title + ' ' + feed.items[0].link + ' ' + feed.items[0].contentSnippet); // Test junk
-				resolve('Success'); //We did it, yay
+				//itemArray.push(feed.items[0]); // Test junk
+				resolve(feed.items[0]); //We did it, yay
 			}
 		});
 	});
 }
 async function processValues(values, res, cluster){//Processes the Blogs for twitter posting.
-	let blogItems = []; //Test variable, currently this function is for pulling from google sheets.
+	//let blogItems = []; //Test variable, currently this function is for pulling from google sheets.
 	for (index = 0; index < values.length; index++) { //iterate through value list
 		let uri = values[index][0]; //pulls url value
 		if(!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips any http://, https:// stuff
 			uri = 'http://' + uri; //creates a uniform version
 		}
-		await rssParse(uri, blogItems, cluster); //Wait patiently for a returned value from rssParse before returning a response to the user/ sending stuff to twitter. 
+		await rssParse(uri).then(function(result) {
+		}).catch(err => {console.log(err)})//Wait patiently for a returned value from rssParse before returning a response to the user/ sending stuff to twitter. 
 	}
-	res.json(blogItems); //This is the point where where we'll implement the twitter interaction and begin creating and checking database entries. 
+	res.json("The DB did a thing"); //This is the point where where we'll implement the twitter interaction and begin creating and checking database entries. 
 						//Must check for first posts, as well as performing our date and existing post checks
 }
 
+function addBlogs(sheet){
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*+ sheet.range*/ + '?key=' + apiKey;
+	axios.get(uri).then((response) => {
+		let values = response.data.values;
+		for (index = 0; index < values.length; index++){
+			let uri = values[index][0];
+			if (!uri.match(/^[a-zA-Z]+:\/\//)){
+				uri = 'http://' + uri;
+			}
+			var blog = new Blog({
+				baseUrl: uri,
+				dateAdded: Date.now(),
+				active: true,
+				cluster: sheet.cluster,
+				sheet: sheet._id
+			});
+			blog.save(function (err){
+				if (err) {console.log(err)} 
+			});
+		}
+	});
+}
+
+
 sheetRoutes.route('/add').post(function (req, res) { //Adds sheets to the database w/ url and range etc. Refer to the ./src/models folder for database structure info
-	var entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.		
+	var entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.
 		entry.save().then(
 			entry => {
+				addBlogs(entry);
 				res.status(200).json({'entry': 'Entry added successfully'});
 			}).catch(err => {
 				res.status(400).send('Unable to save to database');

@@ -15,6 +15,7 @@
 
 		<div style="margin-top:40px;margin-left:40px;margin-right:40px">
 			<button @click="processSheet">TEST ME</button>
+			<button @click="deleteSheet">DELETE SHEET</button>
 			<table style="width:100%;overflow-x:scroll;margin-top:40px" v-if="rows.length > 0" class="sheetX">
 				<thead>
 					<tr>
@@ -154,6 +155,12 @@
 				event.preventDefault();
 				this.axios.get('/sheets/rss/' + this.SheetId + '/' + this.ClusterId).then((response) => {
 					console.log(response);
+				});
+			},
+			deleteSheet (event) {
+				event.preventDefault();
+				this.axios.get('/sheets/delete/' + this.SheetId).then((response) => {
+					console.log(response)
 				});
 			}
 		},

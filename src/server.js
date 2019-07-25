@@ -7,12 +7,13 @@ const express = require('express'),
 	clusterRoutes = require('./expressRoutes/clusterRoutes');
 	sheetRoutes = require('./expressRoutes/sheetRoutes')
 	mongoose.Promise = global.Promise;
-	mongoose.connect('mongodb://localhost/test4').then(
+	mongoose.connect('mongodb://localhost/test5').then(
 		() => {console.log('Database is connected')},
 		err => {console.log('Can not connect to the database' + err)}
 		);
 	
 	const app = express();
+	mongoose.set('useFindAndModify', false);
 	app.use(express.static('public'));
 	app.use(bodyParser.json());
 	app.use(cors());
