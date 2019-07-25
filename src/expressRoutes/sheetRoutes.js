@@ -167,7 +167,7 @@ sheetRoutes.route('/get/:id').get(function (req, res) {
 		}
 	});
 });
-sheetRoutes.route('/edit/:id').get(function (req, res) { //Why on earth are there two of these? Review where these are used thanks. 
+/*sheetRoutes.route('/edit/:id').get(function (req, res) { //Likely a holdover from duplicating the cluster routes. Not used anywhere
 	var id = req.params.id;
 	Sheet.findById(id, function(err, sheet){
 		if(err){
@@ -177,7 +177,7 @@ sheetRoutes.route('/edit/:id').get(function (req, res) { //Why on earth are ther
 			res.json(sheet);
 		}
 	});
-});
+});*/
 
 sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in the database with new values.
 	Sheet.findById(req.params.id, function(err, sheet) {
