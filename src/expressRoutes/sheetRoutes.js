@@ -41,6 +41,54 @@ async function processValues(values, res, cluster){//Processes the Blogs for twi
 						//Must check for first posts, as well as performing our date and existing post checks
 }
 
+async function processValues2(){ //incomplete, but should work without any issues on the backend. Need to sort out twitter api stuff. 
+	var stream = Blog.find({active: true}).stream(); //Will replace the other processValues function after being completed and tested. 
+	
+	stream.on('data', async function (blog) { //Takes each document and checks the post to see if it's new. It will tweet out if successful. 
+		latestPost = await rssParse(blog.baseUrl);
+		if (blog.post == null) {
+			let post = new Post({
+				url: latestPost.link,
+				title: latestPost.title,
+				date: latestPost.isoDate,
+				content: latestPost.contentSnippet
+			});
+			post.blog = blog;
+			blog.post = post;
+			await blog.save(async function (err){
+				if (err) {console.log(err)}
+				await post.save(async function(err){
+					if (err) {console.log(err)}
+				});
+			});
+		}
+		else{
+			blog.populate('post', async function (err){ //Populates the post v
+				if (blog.post.date  < latestPost.isoDate){
+					let post = new Post({
+						url: latestPost.link,
+						title: latestPost.title,
+						date: latestPost.isoDate,
+						content: latestPost.contentSnippet
+					});
+					post.blog = blog;
+					blog.post = post;
+					await blog.save(async function (err){
+						if (err){console.log(err)}
+						await post.save(async function (err){
+							if (err) {console.log(err)}
+						});
+					});
+					///////////////////////////////////
+					// TWEET THINGS OUT AT THIS POINT//
+					///////////////////////////////////
+					
+				}
+			});
+		}
+	});
+}
+
 function addBlogs(sheet){
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*+ sheet.range*/ + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
