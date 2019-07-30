@@ -31,7 +31,9 @@ export default {
 		},
 		processAll (event) {
 			event.preventDefault();
-			this.axios.post('/sheets/process/complete');
+			this.axios.post('/sheets/process/complete').then((res)=>{
+				console.log(res);
+			});
 		}
   },
   mounted () {

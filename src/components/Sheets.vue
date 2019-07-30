@@ -16,7 +16,6 @@
 		</div>
 
 		<div style="margin-top:40px;margin-left:40px;margin-right:40px">
-			<button @click="processSheet">TEST ME</button>
 			<button @click="deleteSheet">DELETE SHEET</button>
 			<button @click="postProcess">Process This Sheet</button>
 			<table style="width:100%;overflow-x:scroll;margin-top:40px" v-if="rows.length > 0" class="sheetX">
@@ -154,16 +153,6 @@
 			editSheet () {
 				this.editing = !this.editing;
 			},
-			processSheet (event) {
-				/*let uri = '/sheets/parse/' + this.SheetId;
-				this.axios.get(uri).then((response) => {
-					this.sheetDATA = response.data.values;
-				});*/
-				event.preventDefault();
-				this.axios.get('/sheets/rss/' + this.SheetId + '/' + this.ClusterId).then((response) => {
-					console.log(response);
-				});
-			},
 			deleteSheet (event) {
 				event.preventDefault();
 				self = this;
@@ -174,7 +163,9 @@
 			},
 			postProcess (event){
 				event.preventDefault();
-				this.axios.post('/sheets/process/' + this.SheetId);
+				this.axios.post('/sheets/process/' + this.SheetId).then((res)=>{
+					console.log(res);
+				});
 			}
 		},
 		

@@ -54,7 +54,7 @@ async function processBlogs(sheet){ //takes a mongoose sheet model object as inp
 		stream.pause(); //Prevents the stream from advancing before determining the latest post for each blog
 		latestPost = await rssParse(blog.baseUrl);
 		stream.resume();
-		if (blog.post == undefined) {
+		if (blog.post == undefined) { //Handles the first time processing blogs that don't have a post assigned to them. Potentially can be merged with the other code block. 
 			let post = new Post({
 				url: latestPost.link,
 				title: latestPost.title,
@@ -72,8 +72,8 @@ async function processBlogs(sheet){ //takes a mongoose sheet model object as inp
 		}
 		else{
 			await blog.populate('post', async function (err){ //Populates the post field
-				if (blog.post == null){
-					let post = new Post({
+				if (blog.post == null){ //Handles an error where a post has been created but not saved to the db due to some error. Blogs assigned to this post will cause errors in the flow
+					let post = new Post({ //Might have been fixed by managing the query stream pacing, but will stay here for now. 
 						url: latestPost.link,
 						title: latestPost.title,
 						date: latestPost.isoDate,
@@ -100,14 +100,14 @@ async function processBlogs(sheet){ //takes a mongoose sheet model object as inp
 					});
 					post.blog = blog;
 					blog.post = post;
-					stream.pause()
+					stream.pause() //Required to prevent reaching the nodejs stack limit with mongoose operations. 
 					await blog.save(async function (err){ //Saves blog with new latest post
 						if (err){console.log(err)}
 						await post.save(function (err){ //Saves new post object to database
 							if (err) {console.log(err)}
 						});
 					});
-					stream.resume();	
+					stream.resume();	 //Resume query stream after we've finished saving data to the db
 					///////////////////////////////////
 					// TWEET THINGS OUT AT THIS POINT//
 					///////////////////////////////////
@@ -128,7 +128,7 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 		let values = response.data.values;
 		for (index = 0; index < values.length; index++){
 			let uri = values[index][0];
-			if (!uri.match(/^[a-zA-Z]+:\/\//)){
+			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
 				uri = 'http://' + uri;
 			}
 			var blog = new Blog({
@@ -160,11 +160,11 @@ sheetRoutes.route('/add').post(function (req, res) { //Adds sheets to the databa
 
 sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
 	let id = req.params.id; //Need to implement per cluster. 
-	if (id == 'complete'){
+	if (id == 'complete'){ //Processes the entire collection of blogs, except for inactive or manual update blogs. 
 		processBlogs();
 	}
 	else{
-		Sheet.findById(id, function (err, sheet){
+		Sheet.findById(id, function (err, sheet){ //Processes all the active blogs in a sheet, essentially the manual blog check. 
 			if(err){
 				console.log(err);
 			}
@@ -173,26 +173,10 @@ sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for r
 			}
 		});
 	}
+	res.status(200).send("Schroedinger's Database"); //Chrome was complaining about not getting a response
 });
 
-sheetRoutes.route('/parse/:id').get(function (req, res){
-	Sheet.findById(req.params.id, function(err, sheet) {
-		if(err){
-			console.log(err);
-		}
-		else{
-			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
-			console.log(uri);
-			axios.get(uri).then((response) => { //I don't know what I'm using this for. But it's a generic http request for google sheets. Maybe remove later
-				res.json(response.data);
-			}).catch((error) => {
-				console.log(error);
-			});
-		}
-	});
-});
-
-sheetRoutes.route('/:id').get(function (req, res) {
+sheetRoutes.route('/:id').get(function (req, res) { //Potentially smart to better name this call. 
 	let id = req.params.id;
 	Sheet.find({ cluster: id },function (err, sheet){//Requests sheets from the db by their cluster.
 		if(err){

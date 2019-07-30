@@ -36,9 +36,9 @@
 		margin:auto;
 		position:relative;
 		border:3px solid black;
-		margin-top:40px;
+		margin-top:30px;
 		overflow:hidden;
-		border-radius:10px;
+		border-radius:4px;
 		cursor: pointer
 	}
 	
