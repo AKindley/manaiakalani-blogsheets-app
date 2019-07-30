@@ -7,7 +7,8 @@ var blogSchema  = new mongoose.Schema({
 	active: Boolean,
 	post: {type: mongoose.Schema.Types.ObjectId, ref: 'Post'},
 	cluster: {type: mongoose.Schema.Types.ObjectId, ref: 'Cluster'},
-	sheet: {type: mongoose.Schema.Types.ObjectId, ref: 'Sheet'}
+	sheet: {type: mongoose.Schema.Types.ObjectId, ref: 'Sheet'},
+	automation: Boolean
 });
 
 module.exports = mongoose.model('Blog', blogSchema);

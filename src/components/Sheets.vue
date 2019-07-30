@@ -9,7 +9,9 @@
 				<option :key="`${sheet}`" v-for="sheet in sheetsList">
 					{{sheet}}
 				</option>
-			</select></label>
+			</select></label><br>
+			<label for="checkbox">Automatically check the blogs on this sheet?: {{ automated }}</label>
+			<input :disabled="!editing" type="checkbox" id="checkbox" v-model="automated">
 			<button v-if="editing" style="float:right;margin-right:40px;margin-top:20px" @click="addSheet">save sheet to cluster</button>
 		</div>
 
@@ -65,7 +67,9 @@
 			cellRange: '',
 			column: '',
 			rowNum: '',
-			sheetDATA: []
+			sheetDATA: [],
+			automated: true
+			
 			}
 		},
 		methods: {
@@ -110,22 +114,23 @@
 			addSheet(event){
 				event.preventDefault();
 				if (this.selectedSheet && this.cellRange && this.curSheetId && this.ClusterId){
-				var newSheet = {
-					name: this.selectedSheet,
-					title: this.sheetName,
-					range: this.cellRange,
-					spreadsheetId: this.curSheetId,
-					cluster: this.ClusterId
-				};
-				if (this.SheetId === 'add'){
-					let uri = '/sheets/add';
-					this.axios.post(uri, newSheet);
-					this.$router.go(-1);
-				}
-				else{
-					let uri = '/sheets/update/' + this.SheetId;
-					this.axios.post(uri, newSheet);
-				}
+					var newSheet = {
+						name: this.selectedSheet,
+						title: this.sheetName,
+						range: this.cellRange,
+						spreadsheetId: this.curSheetId,
+						cluster: this.ClusterId,
+						automation: this.automated
+					};
+					if (this.SheetId === 'add'){
+						let uri = '/sheets/add';
+						this.axios.post(uri, newSheet);
+						this.$router.go(-1);
+					}
+					else{
+						let uri = '/sheets/update/' + this.SheetId;
+						this.axios.post(uri, newSheet);
+					}
 				}
 				else{
 					window.alert("Please fill in all required fields!");
@@ -143,6 +148,7 @@
 					this.column = this.cellRange[0];
 					this.rowNum = parseInt(this.cellRange[1]);
 					this.sheetUrl = 'https://docs.google.com/spreadsheets/d/' + temp.spreadsheetId;
+					this.automated = temp.automation;
 				});
 			},
 			editSheet () {
@@ -160,8 +166,10 @@
 			},
 			deleteSheet (event) {
 				event.preventDefault();
+				self = this;
 				this.axios.get('/sheets/delete/' + this.SheetId).then((response) => {
-					console.log(response)
+					console.log(response);
+					self.$router.go(-1);
 				});
 			},
 			postProcess (event){

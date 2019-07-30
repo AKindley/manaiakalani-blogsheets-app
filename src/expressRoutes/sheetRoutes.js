@@ -42,9 +42,9 @@ async function processValues(values, res, cluster){//Processes the Blogs for twi
 						//Must check for first posts, as well as performing our date and existing post checks
 }
 
-async function processValues2(sheet){ //incomplete, but should work without any issues on the backend. Need to sort out twitter api stuff.
-	if (sheet === undefined){
-		var stream = Blog.find({active: true}).cursor();
+async function processBlogs(sheet){ //takes a mongoose sheet model object as input
+	if (sheet == undefined || sheet == null){
+		var stream = Blog.find({active: true, automation: true}).cursor();
 	}
 	else{
 		var stream = Blog.find({active: true, sheet: sheet._id}).cursor(); //Will replace the other processValues function after being completed and tested.
@@ -71,10 +71,27 @@ async function processValues2(sheet){ //incomplete, but should work without any 
 			});
 		}
 		else{
-			blog.populate('post', async function (err){ //Populates the post field
-				console.log(latestPost.isoDate + ' == ' + blog.post.date + '? ' + (moment(latestPost.isoDate).isSame(blog.post.date))); //Testing
-				console.log('Same url?: ' + (blog.post.url == latestPost.link)); //Testing
-				if ( blog.post.url != latestPost.link && moment(latestPost.isoDate).isAfter(blog.post.date)){ //Posts are only new if the link is different and the time is after the last post. 
+			await blog.populate('post', async function (err){ //Populates the post field
+				if (blog.post == null){
+					let post = new Post({
+						url: latestPost.link,
+						title: latestPost.title,
+						date: latestPost.isoDate,
+						content: latestPost.contentSnippet
+					})
+					post.blog = blog;
+					blog.post = post;
+					await blog.save(async function (err){
+						if (err){console.log(err)}
+						await post.save(async function (err){
+							if (err){console.log(err)}
+						});
+					});
+					
+				}
+				else if ( blog.post.url != latestPost.link && moment(latestPost.isoDate).isAfter(blog.post.date)){ //Posts are only new if the link is different and the time is after the last post. 
+					console.log(latestPost.isoDate + ' == ' + blog.post.date + '? ' + (moment(latestPost.isoDate).isSame(blog.post.date))); //Testing
+					console.log('Same url?: ' + (blog.post.url == latestPost.link)); //Testing
 					let post = new Post({ //Creates a new post objects for the MongoDB
 						url: latestPost.link,
 						title: latestPost.title,
@@ -83,19 +100,21 @@ async function processValues2(sheet){ //incomplete, but should work without any 
 					});
 					post.blog = blog;
 					blog.post = post;
+					stream.pause()
 					await blog.save(async function (err){ //Saves blog with new latest post
 						if (err){console.log(err)}
-						console.log(blog);
-						await post.save(async function (err){ //Saves new post object to database
+						await post.save(function (err){ //Saves new post object to database
 							if (err) {console.log(err)}
-							console.log(post);
 						});
 					});
+					stream.resume();	
 					///////////////////////////////////
 					// TWEET THINGS OUT AT THIS POINT//
 					///////////////////////////////////
 				}
 				else{
+					console.log(latestPost.isoDate + ' == ' + blog.post.date + '? ' + (moment(latestPost.isoDate).isSame(blog.post.date))); //Testing
+					console.log('Same url?: ' + (blog.post.url == latestPost.link)); //Testing
 					console.log(blog.baseUrl + ": No new post for this blog"); //Testing
 				}
 			});
@@ -104,7 +123,7 @@ async function processValues2(sheet){ //incomplete, but should work without any 
 }
 
 function addBlogs(sheet){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*+ sheet.range*/ + '?key=' + apiKey;
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
 		let values = response.data.values;
 		for (index = 0; index < values.length; index++){
@@ -117,7 +136,8 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 				dateAdded: Date.now(),
 				active: true,
 				cluster: sheet.cluster,
-				sheet: sheet._id
+				sheet: sheet._id,
+				automation: sheet.automation
 			});
 			blog.save(function (err){
 				if (err) {console.log(err)} 
@@ -141,7 +161,7 @@ sheetRoutes.route('/add').post(function (req, res) { //Adds sheets to the databa
 sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
 	let id = req.params.id; //Need to implement per cluster. 
 	if (id == 'complete'){
-		processValues2();
+		processBlogs();
 	}
 	else{
 		Sheet.findById(id, function (err, sheet){
@@ -149,27 +169,10 @@ sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for r
 				console.log(err);
 			}
 			else{
-				processValues2(sheet);
+				processBlogs(sheet);
 			}
 		});
 	}
-});
-
-sheetRoutes.route('/rss/:id/:cluster').get(function (req, res){ //This is the main call for parsing rss stuff via the webapp. Might need a better name. id = sheetId, cluster = cluster id. SheetId is only necessary for the google sheets information calls. ClusterId is necessary for creating blog objects with correct references. 
-	let id = req.params.id;
-	let cluster = req.params.cluster; //Putting the http request parameters into a more servicable form
-	Sheet.findById(id, function (err, sheet){
-		if(err){
-			console.log(err);
-		}
-		else{ //This is all first run at the moment, need to diverge flows for the periodic runs. 
-			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*+ sheet.range*/ + '?key=' + apiKey; //Edit this for sheets once done testing, range is fixed
-			axios.get(uri).then((response) => { //Check for duplicate blogs in the database here, the google sheets call is unnecessary if performing a check over the database itself
-				let values = response.data.values;
-				processValues(values, res, cluster); //Process the values from sheets, the function will handle response calls. 
-			});
-		}
-	});
 });
 
 sheetRoutes.route('/parse/:id').get(function (req, res){
@@ -259,15 +262,17 @@ sheetRoutes.route('/get/:id').get(function (req, res) {
 });*/
 
 sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in the database with new values.
-	Sheet.findById(req.params.id, function(err, sheet) {
+	Sheet.findById(req.params.id, async function(err, sheet) {
 		if (!sheet) return next (new Error('Could not load Document'));
 		else {
 			sheet.name = req.body.name;
 			sheet.title = req.body.title;
 			sheet.range = req.body.range;
-			sheet.clusterId = req.body.clusterId;
+			sheet.cluster = req.body.cluster;
 			sheet.spreadsheetId = req.body.spreadsheetId;
+			sheet.automation = req.body.automation;
 			
+			await Blog.updateMany({active: true, sheet: sheet._id}, {automation: sheet.automation});
 			sheet.save().then(sheet => {
 				res.json('Update complete');
 			})
@@ -279,7 +284,12 @@ sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in
 });
 
 sheetRoutes.route('/delete/:id').get(function (req, res) { //Deletes a sheet from the db 
-	Sheet.findByIdAndRemove({_id: req.params.id}, function(err, sheet){
+	Sheet.findByIdAndRemove({_id: req.params.id}, async function(err, sheet){
+		////////////////////////////////////////////
+		/////NOT INTENDED FOR FINAL ITERATION///////
+		await Blog.deleteMany({sheet: sheet._id});//
+		/////NOT INTENDED FOR FINAL ITERATION///////
+		////////////////////////////////////////////
 		if(err) res.json(err);
 		else res.json('Successfully removed');
 	});

@@ -6,7 +6,8 @@ var sheetSchema = new mongoose.Schema({
 	title: String,
 	spreadsheetId: {type: String, unique: true, required: true},
 	range: String,
-	cluster: {type: mongoose.Schema.Types.ObjectId, ref: 'Cluster'}
+	cluster: {type: mongoose.Schema.Types.ObjectId, ref: 'Cluster'},
+	automation: Boolean
 });
 
 module.exports = mongoose.model('Sheet', sheetSchema);
