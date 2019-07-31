@@ -28,19 +28,6 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 		});
 	});
 }
-async function processValues(values, res, cluster){//Processes the Blogs for twitter posting.
-	//let blogItems = []; //Test variable, currently this function is for pulling from google sheets.
-	for (index = 0; index < values.length; index++) { //iterate through value list
-		let uri = values[index][0]; //pulls url value
-		if(!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips any http://, https:// stuff
-			uri = 'http://' + uri; //creates a uniform version
-		}
-		await rssParse(uri).then(function(result) {
-		}).catch(err => {console.log(err)})//Wait patiently for a returned value from rssParse before returning a response to the user/ sending stuff to twitter. 
-	}
-	res.json("The DB did a thing"); //This is the point where where we'll implement the twitter interaction and begin creating and checking database entries. 
-						//Must check for first posts, as well as performing our date and existing post checks
-}
 
 async function processBlogs(sheet){ //takes a mongoose sheet model object as input
 	if (sheet == undefined || sheet == null){
