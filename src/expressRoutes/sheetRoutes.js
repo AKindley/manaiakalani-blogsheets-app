@@ -49,7 +49,8 @@ async function processBlogs(sheet){ //takes a mongoose sheet model object as inp
 	else{
 		var stream = Blog.find({active: true, sheet: sheet._id}).cursor(); //Will replace the other processValues function after being completed and tested.
 	}
-	
+	var bulkBlogArray = []; //These two arrays contain the operations performed in bulk when the stream completes. 
+	var bulkPostArray = []; //Requires two, as bulkWrite is performed per mongoose collection. 
 	stream.on('data', async function (blog) { //Takes each document and checks the post to see if it's new. It will tweet out if successful. 
 		stream.pause(); //Prevents the stream from advancing before determining the latest post for each blog
 		latestPost = await rssParse(blog.baseUrl);
@@ -63,32 +64,45 @@ async function processBlogs(sheet){ //takes a mongoose sheet model object as inp
 			});
 			post.blog = blog;
 			blog.post = post;
-			await blog.save(async function (err){
-				if (err) {console.log(err)}
-				await post.save(async function(err){
-					if (err) {console.log(err)}
-				});
+			bulkPostArray.push({ //Adds the post insert op to the bulk array
+				insertOne: {
+					document: post
+				}
+			});
+			bulkBlogArray.push({ //pushes update op for blogs to the array
+				updateOne: {
+					filter: {_id: blog._id},
+					update: {post: post}
+				}
 			});
 		}
 		else{
 			await blog.populate('post', async function (err){ //Populates the post field
+			///////////////////////////////////////////////////////////////////////////////////////////////////////////
+			//////////////////////For Blogs With Posts (null or otherwise)////////////////////////////////////////////
 				if (blog.post == null){ //Handles an error where a post has been created but not saved to the db due to some error. Blogs assigned to this post will cause errors in the flow
 					let post = new Post({ //Might have been fixed by managing the query stream pacing, but will stay here for now. 
 						url: latestPost.link,
 						title: latestPost.title,
 						date: latestPost.isoDate,
 						content: latestPost.contentSnippet
-					})
+					});
 					post.blog = blog;
 					blog.post = post;
-					await blog.save(async function (err){
-						if (err){console.log(err)}
-						await post.save(async function (err){
-							if (err){console.log(err)}
-						});
+					bulkPostArray.push({
+						insertOne: {
+							document: post
+						}
+					});
+					bulkBlogArray.push({
+						updateOne: {
+							filter: {_id: blog._id},
+							update: {post: post}
+						}
 					});
 					
 				}
+				////////////////////////////////////////////////////////////////////////////////////////////////
 				else if ( blog.post.url != latestPost.link && moment(latestPost.isoDate).isAfter(blog.post.date)){ //Posts are only new if the link is different and the time is after the last post. 
 					console.log(latestPost.isoDate + ' == ' + blog.post.date + '? ' + (moment(latestPost.isoDate).isSame(blog.post.date))); //Testing
 					console.log('Same url?: ' + (blog.post.url == latestPost.link)); //Testing
@@ -100,14 +114,17 @@ async function processBlogs(sheet){ //takes a mongoose sheet model object as inp
 					});
 					post.blog = blog;
 					blog.post = post;
-					stream.pause() //Required to prevent reaching the nodejs stack limit with mongoose operations. 
-					await blog.save(async function (err){ //Saves blog with new latest post
-						if (err){console.log(err)}
-						await post.save(function (err){ //Saves new post object to database
-							if (err) {console.log(err)}
-						});
+					bulkPostArray.push({
+						insertOne: {
+							document: post
+						}
 					});
-					stream.resume();	 //Resume query stream after we've finished saving data to the db
+					bulkBlogArray.push({
+						updateOne: {
+							filter: {_id: blog._id},
+							update: {post: post}
+						}
+					});
 					///////////////////////////////////
 					// TWEET THINGS OUT AT THIS POINT//
 					///////////////////////////////////
@@ -120,11 +137,23 @@ async function processBlogs(sheet){ //takes a mongoose sheet model object as inp
 			});
 		}
 	});
+	stream.on('end', function (){
+		if (bulkBlogArray.length != 0 && bulkPostArray.length != 0){
+			Blog.bulkWrite(bulkBlogArray).then(res => {
+				console.log("Updated Blogs: " + res.modifiedCount);
+			});
+			Post.bulkWrite(bulkPostArray).then(res => {
+				console.log("New Posts: " + res.insertedCount);
+			});
+		}
+		else{console.log("No updates this time");} //Seems to just not appear
+	});
 }
 
 function addBlogs(sheet){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
+		blogArray = [];
 		let values = response.data.values;
 		for (index = 0; index < values.length; index++){
 			let uri = values[index][0];
@@ -139,10 +168,16 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 				sheet: sheet._id,
 				automation: sheet.automation
 			});
-			blog.save(function (err){
-				if (err) {console.log(err)} 
+			
+			blogArray.push({
+				insertOne: {
+					document: blog
+				}
 			});
 		}
+		console.log(blogArray);
+		Blog.bulkWrite(blogArray);
+		
 	});
 }
 
