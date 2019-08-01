@@ -28,114 +28,105 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 		});
 	});
 }
-
-async function processBlogs(sheet){ //takes a mongoose sheet model object as input
-	if (sheet == undefined || sheet == null){
-		var stream = Blog.find({active: true, automation: true}).cursor();
-	}
-	else{
-		var stream = Blog.find({active: true, sheet: sheet._id}).cursor(); //Will replace the other processValues function after being completed and tested.
-	}
-	var bulkBlogArray = []; //These two arrays contain the operations performed in bulk when the stream completes. 
-	var bulkPostArray = []; //Requires two, as bulkWrite is performed per mongoose collection. 
-	stream.on('data', async function (blog) { //Takes each document and checks the post to see if it's new. It will tweet out if successful. 
-		stream.pause(); //Prevents the stream from advancing before determining the latest post for each blog
-		latestPost = await rssParse(blog.baseUrl);
-		stream.resume();
-		if (blog.post == undefined) { //Handles the first time processing blogs that don't have a post assigned to them. Potentially can be merged with the other code block. 
+async function grabBlogs(sheet){ //Grabs all the necessary information to process blogs and check for new posts. 
+	return new Promise(async function(resolve, reject){
+		blogArray = []; //declare the array of information
+		var query = {}; //query filter object for the query
+		if (sheet == undefined || sheet == null){ //For full database checks
+			query.active = true;
+			query.automation = true;
+		}
+		else{ //for single sheet checks
+			query.active = true;
+			query.sheet = sheet._id;
+		}
+		for await (const blog of Blog.find(query)){ //iterate through the query, mongoose creates a cursor()
+			let blogInfo = {}; //object that contains the information for each blog
+			blogInfo.blog = blog; //blog info from the mongo db
+			if (blog.post != undefined){ //if there's a post already referenced by the blog model
+				await Post.findById(blog.post, function (err, post){ //search by id, populate won't return a model- which we require. 
+					blogInfo.postOld = post; //old post info from the mongo db
+				});
+			}
+			
+			blogArray.push(blogInfo); //Pushes the info object into the array
+		}
+		console.log(blogArray)
+		resolve(blogArray); //Return the array of objects
+	});
+}
+async function processBlogs(sheet){
+	var blogArray = await grabBlogs(sheet); //wait on all the information calls before running checks. 
+	var blogOps = []; //array of operations for the bulkWrite at the end
+	var postOps = [];
+	for (const blogInfo of blogArray){ //iterate over the blog info array
+		let blog = blogInfo.blog;
+		let latestPost = await rssParse(blog.baseUrl); //new? post from the rss feed of the blog
+		if (blog.post == undefined || blog.post == null){ //if no blog post is present, select latest post
 			let post = new Post({
 				url: latestPost.link,
 				title: latestPost.title,
 				date: latestPost.isoDate,
 				content: latestPost.contentSnippet
 			});
-			post.blog = blog;
+			post.blog = blog; //setting refs between the post and the blog
 			blog.post = post;
-			bulkPostArray.push({ //Adds the post insert op to the bulk array
+			postOps.push({ //push insert operation to array
 				insertOne: {
 					document: post
 				}
 			});
-			bulkBlogArray.push({ //pushes update op for blogs to the array
+			blogOps.push({ //push update operation to array
 				updateOne: {
-					filter: {_id: blog._id},
-					update: {post: post}
+				filter: {_id: blog._id},
+				update: {post: post}
 				}
-			});
+			});			
 		}
-		else{
-			await blog.populate('post', async function (err){ //Populates the post field
-			///////////////////////////////////////////////////////////////////////////////////////////////////////////
-			//////////////////////For Blogs With Posts (null or otherwise)////////////////////////////////////////////
-				if (blog.post == null){ //Handles an error where a post has been created but not saved to the db due to some error. Blogs assigned to this post will cause errors in the flow
-					let post = new Post({ //Might have been fixed by managing the query stream pacing, but will stay here for now. 
-						url: latestPost.link,
-						title: latestPost.title,
-						date: latestPost.isoDate,
-						content: latestPost.contentSnippet
-					});
-					post.blog = blog;
-					blog.post = post;
-					bulkPostArray.push({
-						insertOne: {
-							document: post
-						}
-					});
-					bulkBlogArray.push({
-						updateOne: {
-							filter: {_id: blog._id},
-							update: {post: post}
-						}
-					});
-					
-				}
-				////////////////////////////////////////////////////////////////////////////////////////////////
-				else if ( blog.post.url != latestPost.link && moment(latestPost.isoDate).isAfter(blog.post.date)){ //Posts are only new if the link is different and the time is after the last post. 
-					console.log(latestPost.isoDate + ' == ' + blog.post.date + '? ' + (moment(latestPost.isoDate).isSame(blog.post.date))); //Testing
-					console.log('Same url?: ' + (blog.post.url == latestPost.link)); //Testing
-					let post = new Post({ //Creates a new post objects for the MongoDB
-						url: latestPost.link,
-						title: latestPost.title,
-						date: latestPost.isoDate,
-						content: latestPost.contentSnippet
-					});
-					post.blog = blog;
-					blog.post = post;
-					bulkPostArray.push({
-						insertOne: {
-							document: post
-						}
-					});
-					bulkBlogArray.push({
-						updateOne: {
-							filter: {_id: blog._id},
-							update: {post: post}
-						}
-					});
-					///////////////////////////////////
-					// TWEET THINGS OUT AT THIS POINT//
-					///////////////////////////////////
-				}
-				else{
-					console.log(latestPost.isoDate + ' == ' + blog.post.date + '? ' + (moment(latestPost.isoDate).isSame(blog.post.date))); //Testing
-					console.log('Same url?: ' + (blog.post.url == latestPost.link)); //Testing
-					console.log(blog.baseUrl + ": No new post for this blog"); //Testing
-				}
-			});
+		else{ //otherwise performs date and url checks between the previous and the new post. 
+			let postOld = blogInfo.postOld;
+			console.log(latestPost.isoDate + ' == ' + postOld.date + '? ' + (moment(latestPost.isoDate).isSame(postOld.date))); //Testing
+			console.log('Same url?: ' + (postOld.url == latestPost.link) + '\n'); //Testing
+			if (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)){ //Checks url and date of old and new post to ensure they're different, and that it's a new post. 
+				let post = new Post({
+					url: latestPost.link,
+					title: latestPost.title,
+					date: latestPost.isoDate,
+					content: latestPost.contentSnippet
+				});
+				post.blog = blog;
+				blog.post = post;
+				postOps.push({ //push insert operation to array
+					insertOne: {
+						document: post
+					}
+				});
+				blogOps.push({ //push update operation to array
+					updateOne: {
+						filter: {_id: blog._id},
+						update: {post: post}
+					}
+				});
+			}
+			else{
+				console.log("No new post for this blog: " + blog.baseUrl + "\n");
+			}
+			
 		}
-	});
-	stream.on('end', function (){
-		if (bulkBlogArray.length != 0 && bulkPostArray.length != 0){
-			Blog.bulkWrite(bulkBlogArray).then(res => {
-				console.log("Updated Blogs: " + res.modifiedCount);
-			});
-			Post.bulkWrite(bulkPostArray).then(res => {
-				console.log("New Posts: " + res.insertedCount);
-			});
-		}
-		else{console.log("No updates this time");} //Seems to just not appear
-	});
+	}
+	if (blogOps.length != 0 && postOps.length != 0){ //ignores this step if there's nothing to update/insert
+		Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
+			console.log("Updated Blogs: " + res.modifiedCount);
+		});
+		Post.bulkWrite(postOps).then(res => {
+			console.log("Added Posts: " + res.insertedCount);
+		});
+	}
+	else{
+		console.log("No Updates This Time.")
+	}
 }
+
 
 function addBlogs(sheet){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
@@ -183,6 +174,7 @@ sheetRoutes.route('/add').post(function (req, res) { //Adds sheets to the databa
 sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
 	let id = req.params.id; //Need to implement per cluster. 
 	if (id == 'complete'){ //Processes the entire collection of blogs, except for inactive or manual update blogs. 
+		//processBlogs();
 		processBlogs();
 	}
 	else{
@@ -191,6 +183,7 @@ sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for r
 				console.log(err);
 			}
 			else{
+				//processBlogs(sheet);
 				processBlogs(sheet);
 			}
 		});
