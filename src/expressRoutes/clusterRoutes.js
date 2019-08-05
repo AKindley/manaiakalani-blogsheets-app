@@ -40,6 +40,8 @@ clusterRoutes.route('/update/:id').post(function (req, res) {
 		else {
 			cluster.name = req.body.name;
 			cluster.twitter = req.body.twitter;
+			cluster.access_token = req.body.access_token;
+			cluster.access_token_secret = req.body.access_token_secret;
 			
 			cluster.save().then(cluster => {
 				res.json('Update complete');
