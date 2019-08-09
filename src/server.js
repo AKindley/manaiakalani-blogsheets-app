@@ -1,11 +1,13 @@
 
 const express = require('express'),
+	session = require ('express-session'),
 	path = require('path'),
 	bodyParser = require('body-parser'),
 	cors = require('cors'),
 	mongoose = require('mongoose'),
 	clusterRoutes = require('./expressRoutes/clusterRoutes');
-	sheetRoutes = require('./expressRoutes/sheetRoutes')
+	sheetRoutes = require('./expressRoutes/sheetRoutes');
+	authRoutes = require('./expressRoutes/authRoutes');
 	mongoose.Promise = global.Promise;
 	mongoose.connect('mongodb://localhost/test5').then(
 		() => {console.log('Database is connected')},
@@ -17,10 +19,15 @@ const express = require('express'),
 	app.use(express.static('public'));
 	app.use(bodyParser.json());
 	app.use(cors());
+	app.options('*', cors())
+	app.use(session({secret: 'keyboard cat'}));
 	app.use('/entries', clusterRoutes);
 	app.use('/sheets', sheetRoutes);
+	app.use(authRoutes);
 	const port = process.env.PORT || 4000;
 	
 	const server = app.listen(port, function(){
 		console.log('Listening on port' + port);
 	});
+	
+	

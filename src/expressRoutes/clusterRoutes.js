@@ -3,7 +3,6 @@
 var express = require('express');
 var app = express();
 var clusterRoutes = express.Router();
-
 var Cluster = require('../models/clusterStructure');
 
 clusterRoutes.route('/add').post(function (req, res) {

@@ -21,7 +21,8 @@ export default {
 	mounted () {
 		this.oauth_token = this.$route.query.oauth_token;
 		this.oauth_verifier = this.$route.query.oauth_verifier;
-		//some backend call goes here
+		console.log(this.oauth_token);
+		this.axios.get('\auth\twitter\callback?oauth_token=' + this.oauth_token + '&oauth_verifier=' + this.oauth_verifier);
 	}
 
 }
