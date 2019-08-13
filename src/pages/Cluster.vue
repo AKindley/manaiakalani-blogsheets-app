@@ -3,6 +3,7 @@
 	<button @click="goBack" style="float:left">BACK</button>
     <img alt="Vue logo" src="../assets/logo.png"><br>
 	<div>
+	<button @click="twitterLog">Twitter login</button>
 		<label>Cluster Name: <div>
 			<input v-if="editing" v-model="clusterName" placeholder="name...">
 			<span v-if="!editing">{{clusterName}}</span>
@@ -72,6 +73,11 @@ export default {
 	editCluster (event) {
 		event.preventDefault();
 		this.editing = !this.editing;
+	},
+	twitterLog(event) {
+		event.preventDefault();
+		//this.axios.get('/auth/twitter/' + this.cluster);
+		window.open('http://127.0.0.1:4000/auth/twitter/test/' + this.cluster);
 	}
   },
   mounted () {
