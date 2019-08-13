@@ -1,6 +1,8 @@
 
 var secret = require('../secret.json');
 var apiKey = secret.API_KEY;
+var consumerKey = secret.TWITTER_API_KEY;
+var consumerSecret = secret.TWITTER_API_KEY_SECRET;
 var express = require('express');
 var app = express();
 var sheetRoutes = express.Router();
@@ -10,6 +12,7 @@ var Post = require('../models/postStructure');
 let Parser = require('rss-parser');
 var parser = new Parser();
 var moment = require('moment');
+var Twit = require('twit');
 const axios = require('axios');
 
 
@@ -40,7 +43,7 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 			query.active = true;
 			query.sheet = sheet._id;
 		}
-		for await (const blog of Blog.find(query)){ //iterate through the query, mongoose creates a cursor()
+		for await (const blog of Blog.find(query).populate('cluster')){ //iterate through the query, mongoose creates a cursor()
 			let blogInfo = {}; //object that contains the information for each blog
 			blogInfo.blog = blog; //blog info from the mongo db
 			if (blog.post != undefined){ //if there's a post already referenced by the blog model
@@ -55,8 +58,23 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 		resolve(blogArray); //Return the array of objects
 	});
 }
+
+function tweet(post, cluster){
+	let T  = new Twit({
+		consumer_key: consumerKey,
+		consumer_secret: consumerSecret,
+		access_token: cluster.access_token,
+		access_token_secret: cluster.access_token_secret
+	});
+	let newTweet = 'This is a tweet with the title: ' + post.title
+	T.post('statuses/update', {status: newTweet}, function(err, data, response){
+		console.log(data);
+	});
+}
+
 async function processBlogs(sheet){
 	var blogArray = await grabBlogs(sheet); //wait on all the information calls before running checks. 
+	console.log(blogArray);
 	var blogOps = []; //array of operations for the bulkWrite at the end
 	var postOps = [];
 	for (const blogInfo of blogArray){ //iterate over the blog info array
@@ -71,6 +89,9 @@ async function processBlogs(sheet){
 			});
 			post.blog = blog; //setting refs between the post and the blog
 			blog.post = post;
+			
+			tweet(post, blog.cluster);
+			
 			postOps.push({ //push insert operation to array
 				insertOne: {
 					document: post
@@ -96,6 +117,9 @@ async function processBlogs(sheet){
 				});
 				post.blog = blog;
 				blog.post = post;
+				
+				tweet(post, blog.cluster);
+				
 				postOps.push({ //push insert operation to array
 					insertOne: {
 						document: post

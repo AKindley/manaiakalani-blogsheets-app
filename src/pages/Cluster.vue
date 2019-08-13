@@ -26,6 +26,8 @@
 </template>
 <script>
 import SheetDiv from '../components/SheetDiv.vue'
+var config = require('../config.json');
+var server = config.serverAddress;
 export default {
   name: 'clusterzz',
   props: ['cluster'],
@@ -51,7 +53,7 @@ export default {
 	},
 	submitMe (event) {
 		event.preventDefault();
-		let uri = 'http://localhost:4000/entries/add';
+		let uri = server + '/entries/add';
 		let testThing = {};
 		testThing.name = this.clusterName;
 		testThing.twitter = this.clusterTwitter;
@@ -76,8 +78,7 @@ export default {
 	},
 	twitterLog(event) {
 		event.preventDefault();
-		//this.axios.get('/auth/twitter/' + this.cluster);
-		window.open('http://127.0.0.1:4000/auth/twitter/test/' + this.cluster);
+		window.open( server + '/auth/twitter/test/' + this.cluster); //Twitter auth link call
 	}
   },
   mounted () {

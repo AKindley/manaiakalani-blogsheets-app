@@ -7,7 +7,7 @@
 export default {
 	name: 'callback',
 	mounted () {
-		window.close();
+		window.close(); //closes the window
 	}
 
 }
