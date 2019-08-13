@@ -9,6 +9,7 @@ const express = require('express'),
 	sheetRoutes = require('./expressRoutes/sheetRoutes');
 	authRoutes = require('./expressRoutes/authRoutes');
 	mongoose.Promise = global.Promise;
+	passport = require('passport');
 	mongoose.connect('mongodb://localhost/test5').then(
 		() => {console.log('Database is connected')},
 		err => {console.log('Can not connect to the database' + err)}
@@ -19,8 +20,8 @@ const express = require('express'),
 	app.use(express.static('public'));
 	app.use(bodyParser.json());
 	app.use(cors());
-	app.options('*', cors())
-	app.use(session({secret: 'keyboard cat'}));
+	app.use(passport.initialize())
+	app.use(session({secret: 'keyboard cat', name:'tim', cookie:{secure: false}}));
 	app.use('/entries', clusterRoutes);
 	app.use('/sheets', sheetRoutes);
 	app.use(authRoutes);

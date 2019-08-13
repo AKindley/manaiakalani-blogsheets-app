@@ -76,7 +76,8 @@ export default {
 	},
 	twitterLog(event) {
 		event.preventDefault();
-		this.axios.get('/auth/twitter/' + this.cluster);
+		//this.axios.get('/auth/twitter/' + this.cluster);
+		window.open('http://127.0.0.1:4000/auth/twitter/test/' + this.cluster);
 	}
   },
   mounted () {
