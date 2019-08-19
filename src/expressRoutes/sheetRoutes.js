@@ -66,6 +66,16 @@ function tweet(post, cluster){
 		access_token: cluster.access_token,
 		access_token_secret: cluster.access_token_secret
 	});
+	var newTweet = post.title + ' ' + post.url + ' ' + post.content;
+	var xmlString = response.data;
+	var doc = new DOMParser().parseFromString(xmlString, "text/html");
+	let firstImg = doc.getElementsByTagName("img")[0];
+	if (firstImg == undefined){
+		//Do non media tweet stuff here
+	}
+	else{
+		//Do media upload + tweet stuff here
+	}
 	let newTweet = 'This is a tweet with the title: ' + post.title
 	T.post('statuses/update', {status: newTweet}, function(err, data, response){
 		console.log(data);
@@ -85,7 +95,7 @@ async function processBlogs(sheet){
 				url: latestPost.link,
 				title: latestPost.title,
 				date: latestPost.isoDate,
-				content: latestPost.contentSnippet
+				content: latestPost.content
 			});
 			post.blog = blog; //setting refs between the post and the blog
 			blog.post = post;
@@ -113,7 +123,7 @@ async function processBlogs(sheet){
 					url: latestPost.link,
 					title: latestPost.title,
 					date: latestPost.isoDate,
-					content: latestPost.contentSnippet
+					content: latestPost.content
 				});
 				post.blog = blog;
 				blog.post = post;
@@ -183,6 +193,10 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 	});
 }
 
+sheetRoutes.route('/test').get(async function (req, res){
+	let item = await rssParse('http://thisisnotarealblogthatiuse.blogspot.com');
+	res.json(item.content)
+});
 
 sheetRoutes.route('/add').post(function (req, res) { //Adds sheets to the database w/ url and range etc. Refer to the ./src/models folder for database structure info
 	var entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.
