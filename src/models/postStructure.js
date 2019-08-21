@@ -6,7 +6,8 @@ var postSchema  = new mongoose.Schema({
 	title: String,
 	date: Date,
 	blog: {type: mongoose.Schema.Types.ObjectId, ref: 'Blog'},
-	content: String
+	content: String,
+	snippet: String
 	
 });
 

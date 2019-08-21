@@ -1,4 +1,5 @@
-
+var fs = require('fs'), request = require('request');
+var HTMLParser = require('node-html-parser');
 var secret = require('../secret.json');
 var apiKey = secret.API_KEY;
 var consumerKey = secret.TWITTER_API_KEY;
@@ -58,6 +59,14 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 		resolve(blogArray); //Return the array of objects
 	});
 }
+function download(uri, filename, callback){
+	request.head(uri, function(err, res, body){
+		console.log('content-type:', res.headers['content-type']);
+		console.log('content-length:', res.headers['content-length']);
+		
+		request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
+	});
+}
 
 function tweet(post, cluster){
 	let T  = new Twit({
@@ -66,20 +75,45 @@ function tweet(post, cluster){
 		access_token: cluster.access_token,
 		access_token_secret: cluster.access_token_secret
 	});
-	var newTweet = post.title + ' ' + post.url + ' ' + post.content;
-	var xmlString = response.data;
-	var doc = new DOMParser().parseFromString(xmlString, "text/html");
+	var fullMessage = post.title + ' ' + post.url + ' ' + post.content;
+	var newTweet = fullMessage.substring(0, 277) + '...';
+	var xmlString = post.content;
+	var doc = HTMLParser.parse(xmlString);
+	console.log(xmlString);
+	console.log('THIS THING: ' + doc);
 	let firstImg = doc.getElementsByTagName("img")[0];
 	if (firstImg == undefined){
 		//Do non media tweet stuff here
+		T.post('statuses/update', {status: newTweet}, function(err, data, response){
+			console.log(data);
+		});
 	}
 	else{
 		//Do media upload + tweet stuff here
+		download(firstImg, 'temp.png', function(){
+			console.log('done: ' + firstImg);
+			var b64 = fs.readFileSync('./temp.png', {encoding: 'base64'});
+			T.post('media/upload', { media_data: b64 }, function(err, data, response){
+				var mediaIdStr = data. media_id_string;
+				var altText = "Delet this immeditly";
+				var meta_params = { media_id: mediaIdStr, alt_text: {text: altText}}
+				
+				T.post('media/metadata/create', meta_params, function(err, data, response){
+					if (!err){
+						var params = {status: newTweet, media_ids: [mediaIdStr] }
+						
+						T.post('statuses/update', params, function (err, data, response){
+							console.log(data);
+							fs.unlink('./temp.png', (err) => {
+								if (err) throw err;
+								console.log('temp.png was deleted');
+							});
+						});
+					}
+				});
+			});
+		});
 	}
-	let newTweet = 'This is a tweet with the title: ' + post.title
-	T.post('statuses/update', {status: newTweet}, function(err, data, response){
-		console.log(data);
-	});
 }
 
 async function processBlogs(sheet){
@@ -95,7 +129,8 @@ async function processBlogs(sheet){
 				url: latestPost.link,
 				title: latestPost.title,
 				date: latestPost.isoDate,
-				content: latestPost.content
+				content: latestPost.content,
+				snippet: latestPost.contentSnippet
 			});
 			post.blog = blog; //setting refs between the post and the blog
 			blog.post = post;
@@ -123,7 +158,8 @@ async function processBlogs(sheet){
 					url: latestPost.link,
 					title: latestPost.title,
 					date: latestPost.isoDate,
-					content: latestPost.content
+					content: latestPost.content,
+					snippet: latestPost.contentSnippet
 				});
 				post.blog = blog;
 				blog.post = post;
