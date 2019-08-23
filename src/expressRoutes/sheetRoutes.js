@@ -75,14 +75,29 @@ function tweet(post, cluster){
 		access_token: cluster.access_token,
 		access_token_secret: cluster.access_token_secret
 	});
-	var fullMessage = post.title + ' ' + post.url + ' ' + post.content;
-	var newTweet = fullMessage.substring(0, 277) + '...';
+	
+	var newTweet = post.title + ' ' + post.url + ' ' + post.snippet;
+	if (newTweet.length >= 280){
+		newTweet = newTweet.substring(0, 277) + '...';
+	}
 	var xmlString = post.content;
 	var doc = HTMLParser.parse(xmlString);
-	console.log(xmlString);
-	console.log('THIS THING: ' + doc);
-	let firstImg = doc.getElementsByTagName("img")[0];
-	if (firstImg == undefined){
+	let firstImg = doc.querySelector("img");
+	let firstIframe = doc.querySelector("iframe");
+	console.log('This is the iframe? ----> ' + firstIframe);
+	if ((firstImg == undefined || firstImg == null) && (firstIframe != undefined && firstIframe != null)){
+		var iframeLink = firstIframe.attributes.src;
+		console.log(typeof(iframeLink));
+		if (newTweet.length + 25 >= 280){
+			newTweet = newTweet.substring(0, 252) + '... ' + iframeLink;
+			console.log('This is the newtweet ---> ' + newTweet);
+		}
+		else {
+			newTweet = newTweet + ' ' + iframeLink;
+		}
+	}
+	
+	if (firstImg == undefined || firstImg == null){
 		//Do non media tweet stuff here
 		T.post('statuses/update', {status: newTweet}, function(err, data, response){
 			console.log(data);
@@ -90,7 +105,7 @@ function tweet(post, cluster){
 	}
 	else{
 		//Do media upload + tweet stuff here
-		download(firstImg, 'temp.png', function(){
+		download(firstImg.attributes.src, 'temp.png', function(){
 			console.log('done: ' + firstImg);
 			var b64 = fs.readFileSync('./temp.png', {encoding: 'base64'});
 			T.post('media/upload', { media_data: b64 }, function(err, data, response){
@@ -206,7 +221,7 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 		for (index = 0; index < values.length; index++){
 			let uri = values[index][0];
 			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
-				uri = 'http://' + uri;
+				uri = 'https://' + uri;
 			}
 			var blog = new Blog({
 				baseUrl: uri,
