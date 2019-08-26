@@ -1,9 +1,11 @@
 var fs = require('fs'), request = require('request');
 var HTMLParser = require('node-html-parser');
+//////////////////////////////////////////////
 var secret = require('../secret.json');
 var apiKey = secret.API_KEY;
 var consumerKey = secret.TWITTER_API_KEY;
 var consumerSecret = secret.TWITTER_API_KEY_SECRET;
+//////////////////////////////////////////////
 var express = require('express');
 var app = express();
 var sheetRoutes = express.Router();
@@ -59,12 +61,12 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 		resolve(blogArray); //Return the array of objects
 	});
 }
-function download(uri, filename, callback){
-	request.head(uri, function(err, res, body){
+function download(uri, filename, callback){ //download function for images
+	request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
 		console.log('content-type:', res.headers['content-type']);
 		console.log('content-length:', res.headers['content-length']);
 		
-		request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
+		request(uri).pipe(fs.createWriteStream(filename)).on('close', callback); //writestream for file saving
 	});
 }
 
@@ -84,44 +86,44 @@ function tweet(post, cluster){
 	var doc = HTMLParser.parse(xmlString);
 	let firstImg = doc.querySelector("img");
 	let firstIframe = doc.querySelector("iframe");
-	console.log('This is the iframe? ----> ' + firstIframe);
+	//console.log('This is the iframe? ----> ' + firstIframe); // Test Statements
 	if ((firstImg == undefined || firstImg == null) && (firstIframe != undefined && firstIframe != null)){
 		var iframeLink = firstIframe.attributes.src;
 		console.log(typeof(iframeLink));
 		if (newTweet.length + 25 >= 280){
 			newTweet = newTweet.substring(0, 252) + '... ' + iframeLink;
-			console.log('This is the newtweet ---> ' + newTweet);
+			//console.log('This is the newtweet ---> ' + newTweet); // Test Statements
 		}
 		else {
 			newTweet = newTweet + ' ' + iframeLink;
 		}
 	}
 	
-	if (firstImg == undefined || firstImg == null){
-		//Do non media tweet stuff here
-		T.post('statuses/update', {status: newTweet}, function(err, data, response){
+	if (firstImg == undefined || firstImg == null){ //If there's no image in the post
+		//Do "non-media" tweet stuff here as well as iframe source links
+		T.post('statuses/update', {status: newTweet}, function(err, data, response){ //normal tweet
 			console.log(data);
 		});
 	}
-	else{
+	else{ //
 		//Do media upload + tweet stuff here
-		download(firstImg.attributes.src, 'temp.png', function(){
-			console.log('done: ' + firstImg);
-			var b64 = fs.readFileSync('./temp.png', {encoding: 'base64'});
-			T.post('media/upload', { media_data: b64 }, function(err, data, response){
-				var mediaIdStr = data. media_id_string;
-				var altText = "Delet this immeditly";
+		download(firstImg.attributes.src, 'temp.png', function(){ //do a temporary dl of image using link
+			//console.log('done: ' + firstImg); //test stuff
+			var b64 = fs.readFileSync('./temp.png', {encoding: 'base64'}); //encoded to base64
+			T.post('media/upload', { media_data: b64 }, function(err, data, response){ //upload image with Twit
+				var mediaIdStr = data.media_id_string;
+				var altText = "";
 				var meta_params = { media_id: mediaIdStr, alt_text: {text: altText}}
 				
-				T.post('media/metadata/create', meta_params, function(err, data, response){
+				T.post('media/metadata/create', meta_params, function(err, data, response){ //create media metadata with Twit
 					if (!err){
 						var params = {status: newTweet, media_ids: [mediaIdStr] }
 						
-						T.post('statuses/update', params, function (err, data, response){
+						T.post('statuses/update', params, function (err, data, response){ //update status with tweet text and post w/ media. 
 							console.log(data);
-							fs.unlink('./temp.png', (err) => {
+							fs.unlink('./temp.png', (err) => { //remove temp image storage from server after upload and posting complete
 								if (err) throw err;
-								console.log('temp.png was deleted');
+								// console.log('temp.png was deleted'); //Test stuff
 							});
 						});
 					}
