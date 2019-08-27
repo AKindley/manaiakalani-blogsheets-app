@@ -12,6 +12,7 @@ var sheetRoutes = express.Router();
 var Sheet = require('../models/sheetStructure');
 var Blog = require('../models/blogStructure');
 var Post = require('../models/postStructure');
+var Cluster = require('../models/clusterStructure');
 let Parser = require('rss-parser');
 var parser = new Parser();
 var moment = require('moment');
@@ -138,9 +139,30 @@ async function processBlogs(sheet){
 	console.log(blogArray);
 	var blogOps = []; //array of operations for the bulkWrite at the end
 	var postOps = [];
+	var sheetOps = [];
 	for (const blogInfo of blogArray){ //iterate over the blog info array
 		let blog = blogInfo.blog;
-		let latestPost = await rssParse(blog.baseUrl); //new? post from the rss feed of the blog
+		if (!blog.active){
+			continue;
+		}
+		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
+			//If there's an issue with parsing the url, we push error updates
+			blogOps.push({ //Set blog to inactive so it's not being checked
+				updateOne: {
+					filter: {_id: blog._id},
+					update: {active: false}
+				}
+			});
+			
+			sheetOps.push({ //updates the list of errors on the sheet
+				updateOne: {
+					filter: {_id: blog.sheet},
+					update: {$push: {errors: {"row": blog.row, "error": "Bad Url", "url": blog.baseUrl }}}
+				}
+			});
+			
+			continue;
+		}); //new? post from the rss feed of the blog
 		if (blog.post == undefined || blog.post == null){ //if no blog post is present, select latest post
 			let post = new Post({
 				url: latestPost.link,
@@ -161,8 +183,8 @@ async function processBlogs(sheet){
 			});
 			blogOps.push({ //push update operation to array
 				updateOne: {
-				filter: {_id: blog._id},
-				update: {post: post}
+					filter: {_id: blog._id},
+					update: {post: post}
 				}
 			});			
 		}
@@ -201,12 +223,19 @@ async function processBlogs(sheet){
 			
 		}
 	}
-	if (blogOps.length != 0 && postOps.length != 0){ //ignores this step if there's nothing to update/insert
+	if (blogOps.length != 0){ //ignores this step if there's nothing to update/insert
 		Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
 			console.log("Updated Blogs: " + res.modifiedCount);
 		});
+	}
+	if (postOps.length != 0){
 		Post.bulkWrite(postOps).then(res => {
 			console.log("Added Posts: " + res.insertedCount);
+		});
+	}
+	if (sheetOps.length != 0){
+		Sheet.bulkWrite(sheetOps).then(res => {
+			console.log("New Errors: " + res.modifiedCount);
 		});
 	}
 	else{
@@ -242,8 +271,47 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 		}
 		console.log(blogArray);
 		Blog.bulkWrite(blogArray);
+		Cluster.findById(sheet.cluster, function(err, cluster){
+			if (!cluster) return next (new Error('Could not load document.'));
+			else {
+				let title = sheet.title ? sheet.title : sheet.name;
+				cluster.errors.push({ "name" : title, "id" : sheet._id, "error" : false });
+				cluster.save().then(cluster => {
+					console.log('Sheet pushed to Cluster');
+				}).catch(err => {
+					console.log('Could not push Sheet to Cluster');
+				});
+			}
+		});
 		
 	});
+}
+
+function updateBlogs(sheet){
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
+	blogOps = [];
+	// clear the sheet errors here
+	axios.get(uri).then((res) => {
+		let values = res.data.values;
+		////////////////////////////////////////
+		//need to standardise the urls here!!!//
+		////////////////////////////////////////
+		blogOps.push({
+			updateMany: {
+				filter: {baseUrl: {$nin: values}, sheet: sheet},
+				update: {active: false}
+			},
+			updateMany: {
+				filter: {baseUrl: {$in: values}, sheet: sheet},
+				update: {active: true}
+			}
+		});
+		////////////////////////////////
+		//Add blogs at this point///////
+		////////////////////////////////
+		
+	});
+	//Start reprocessing the sheet here to check for new errors and blog posts. 
 }
 
 sheetRoutes.route('/test').get(async function (req, res){

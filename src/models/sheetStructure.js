@@ -7,6 +7,7 @@ var sheetSchema = new mongoose.Schema({
 	spreadsheetId: {type: String, unique: true, required: true},
 	range: String,
 	cluster: {type: mongoose.Schema.Types.ObjectId, ref: 'Cluster'},
+	error: Array,
 	automation: Boolean
 });
 
