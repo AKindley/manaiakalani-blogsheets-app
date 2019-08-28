@@ -7,7 +7,7 @@
 			</ul>
 		</div>
 		<div style="position:absolute;right:0;height:100%;width:50%;background-color:red" v-if="cluster.error">
-			{{cluster.errorMsg}}
+			{{cluster.error}}
 		</div>
 	</div>
 </template>

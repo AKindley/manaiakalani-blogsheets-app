@@ -3,7 +3,7 @@ var mongoose = require('mongoose');
 
 var blogSchema  = new mongoose.Schema({
 	baseUrl: {type : String, unique : true, required : true},
-	dateAdded: Date,
+	dateAdded: {type : Date, default: Date.now()},
 	active: {type: Boolean, default: true},
 	post: {type: mongoose.Schema.Types.ObjectId, ref: 'Post'},
 	cluster: {type: mongoose.Schema.Types.ObjectId, ref: 'Cluster'},

@@ -36,6 +36,7 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 	});
 }
 async function grabBlogs(sheet){ //Grabs all the necessary information to process blogs and check for new posts. 
+
 	return new Promise(async function(resolve, reject){
 		blogArray = []; //declare the array of information
 		var query = {}; //query filter object for the query
@@ -141,6 +142,7 @@ async function processBlogs(sheet){
 	var postOps = [];
 	var sheetOps = [];
 	for (const blogInfo of blogArray){ //iterate over the blog info array
+		var caught = false;
 		let blog = blogInfo.blog;
 		if (!blog.active){
 			continue;
@@ -155,14 +157,15 @@ async function processBlogs(sheet){
 			});
 			
 			sheetOps.push({ //updates the list of errors on the sheet
-				updateOne: {
-					filter: {_id: blog.sheet},
-					update: {$push: {errors: {"row": blog.row, "error": "Bad Url", "url": blog.baseUrl }}}
+				updateOne: { 
+					filter: {_id: sheet._id},
+					update: {$push: {error: {"row": blog.row, "error": "Bad Url", "url": blog.baseUrl }}}
 				}
 			});
+			caught = true;
 			
-			continue;
 		}); //new? post from the rss feed of the blog
+		if (caught){continue;}
 		if (blog.post == undefined || blog.post == null){ //if no blog post is present, select latest post
 			let post = new Post({
 				url: latestPost.link,
@@ -223,44 +226,48 @@ async function processBlogs(sheet){
 			
 		}
 	}
-	if (blogOps.length != 0){ //ignores this step if there's nothing to update/insert
-		Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
-			console.log("Updated Blogs: " + res.modifiedCount);
-		});
-	}
-	if (postOps.length != 0){
-		Post.bulkWrite(postOps).then(res => {
-			console.log("Added Posts: " + res.insertedCount);
-		});
-	}
-	if (sheetOps.length != 0){
-		Sheet.bulkWrite(sheetOps).then(res => {
-			console.log("New Errors: " + res.modifiedCount);
-		});
+	if ((blogOps.length + postOps.length + sheetOps.length) > 0){
+		if (blogOps.length != 0){ //ignores this step if there's nothing to update/insert
+			Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
+				console.log("Updated Blogs: " + res.modifiedCount);
+			});
+		}
+		if (postOps.length != 0){
+			Post.bulkWrite(postOps).then(res => {
+				console.log("Added Posts: " + res.insertedCount);
+			});
+		}
+		if (sheetOps.length != 0){
+			Sheet.bulkWrite(sheetOps).then(res => {
+				console.log("New Errors: " + res.modifiedCount);
+			});
+		}
 	}
 	else{
 		console.log("No Updates This Time.")
 	}
 }
 
-
 function addBlogs(sheet){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
 		blogArray = [];
 		let values = response.data.values;
+		let startRow = parseInt(sheet.range.charAt(1));
 		for (index = 0; index < values.length; index++){
 			let uri = values[index][0];
 			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
 				uri = 'https://' + uri;
 			}
+			let rowNum = startRow + index;
 			var blog = new Blog({
 				baseUrl: uri,
 				dateAdded: Date.now(),
 				active: true,
 				cluster: sheet.cluster,
 				sheet: sheet._id,
-				automation: sheet.automation
+				automation: sheet.automation,
+				row: rowNum
 			});
 			
 			blogArray.push({
@@ -270,12 +277,30 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 			});
 		}
 		console.log(blogArray);
-		Blog.bulkWrite(blogArray);
-		Cluster.findById(sheet.cluster, function(err, cluster){
+		Blog.bulkWrite(blogArray, {ordered: false}, function (err, res) {
+			if (err){
+				console.log("Err array" + err.writeErrors[0]);
+				console.log("Num inserted: " + err.result.result.nInserted);
+				let errorArray = err.writeErrors;
+				for (index = 0; index < errorArray.length; index++){
+					let rowNum = errorArray[index].err.op.row;
+					let url = errorArray[index].err.op.baseUrl;
+					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
+				}
+				sheet.save().then(res => {
+					console.log("Errors pushed to sheet");
+				});
+			}
+			else {
+				console.log("No issues adding " + res.insertedCount + " blogs");
+			}
+		});
+		
+		Cluster.findById(sheet.cluster, function(err, cluster){ //imperfect, sheets are never removed currently. No functionality to report changes/check errors from cluster level yet
 			if (!cluster) return next (new Error('Could not load document.'));
 			else {
-				let title = sheet.title ? sheet.title : sheet.name;
-				cluster.errors.push({ "name" : title, "id" : sheet._id, "error" : false });
+				let title = sheet.title ? sheet.title : sheet.name;	
+				cluster.error.push({ "name" : title, "id" : sheet._id, "error" : false });
 				cluster.save().then(cluster => {
 					console.log('Sheet pushed to Cluster');
 				}).catch(err => {
@@ -290,28 +315,65 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 function updateBlogs(sheet){
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
 	blogOps = [];
-	// clear the sheet errors here
 	axios.get(uri).then((res) => {
 		let values = res.data.values;
-		////////////////////////////////////////
-		//need to standardise the urls here!!!//
-		////////////////////////////////////////
-		blogOps.push({
+		let uris = [];
+		let startRow = parseInt(sheet.range.charAt(1));
+		for (index = 0; index < values.length; index++){
+			let uri = values[index][0];
+			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
+				uri = 'https://' + uri;
+			}
+			uris.push(uri);
+			let rowNum = startRow + index;
+			
+			blogOps.push({ //"Update" if exists, insert if it doesn't
+				updateOne: {
+					filter: {baseUrl: uri, sheet: sheet},
+					update: {
+						baseUrl: uri,
+						active: true,
+						cluster: sheet.cluster,
+						sheet: sheet._id,
+						automation: sheet.automation,
+						row: rowNum
+					},
+					upsert: true, //important
+					setDefaultsOnInsert: true
+				}
+			});
+			
+		}
+		blogOps.push({ //Set all urls no longer present in the sheet to inactive so that they're not checked for posts.
 			updateMany: {
-				filter: {baseUrl: {$nin: values}, sheet: sheet},
+				filter: {baseUrl: {$nin: uris}, sheet: sheet},
 				update: {active: false}
-			},
-			updateMany: {
-				filter: {baseUrl: {$in: values}, sheet: sheet},
-				update: {active: true}
 			}
 		});
-		////////////////////////////////
-		//Add blogs at this point///////
-		////////////////////////////////
 		
+		Blog.bulkWrite(blogOps, {ordered: false}, function (err, res){ //bulkWrite all operations
+			if (err){
+				console.log("Err array" + err.writeErrors); //Report errors present back to sheet --> cluster
+				console.log("Num inserted: " + err.result.result.nInserted);
+				let errorArray = err.writeErrors;
+				for (index = 0; index < errorArray.length; index++){ //error array
+					let rowNum = errorArray[index].err.op.u.$set.row; //Keep an eye on this in case there's a better way to access this information.
+					let url = errorArray[index].err.op.u.$set.baseUrl; //Seems to be different error formats for inserts/upserts
+					console.log("URL AND ROW: " + rowNum + " "+ url); //debug
+					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url }); //Push to error array in sheet
+				}
+				sheet.save().then(res => {
+					console.log("Errors pushed to sheet");
+				});
+			}
+			else { //if no errors occur
+				console.log("No issues adding " + res.insertedCount + " blogs");
+				console.log("No issues modifying " + res.modifiedCount + " blogs");
+			}
+		});
 	});
-	//Start reprocessing the sheet here to check for new errors and blog posts. 
+	//Start reprocessing the sheet here to check for new errors and blog posts.
+	processBlogs(sheet);
 }
 
 sheetRoutes.route('/test').get(async function (req, res){
@@ -418,10 +480,12 @@ sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in
 			sheet.cluster = req.body.cluster;
 			sheet.spreadsheetId = req.body.spreadsheetId;
 			sheet.automation = req.body.automation;
+			sheet.error = []; //reset errors on sheet update - will be repopulated if errors still exist
 			
-			await Blog.updateMany({active: true, sheet: sheet._id}, {automation: sheet.automation});
+			//await Blog.updateMany({active: true, sheet: sheet._id}, {automation: sheet.automation});
 			sheet.save().then(sheet => {
 				res.json('Update complete');
+				updateBlogs(sheet); //Update call for error checking and blog updates
 			})
 			.catch(err => {
 				res.status(400).send('Unable to update the database');
