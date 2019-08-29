@@ -136,8 +136,8 @@ function tweet(post, cluster){
 }
 
 async function processBlogs(sheet){
+	var sheetId = sheet._id;
 	var blogArray = await grabBlogs(sheet); //wait on all the information calls before running checks. 
-	console.log(blogArray);
 	var blogOps = []; //array of operations for the bulkWrite at the end
 	var postOps = [];
 	var sheetOps = [];
@@ -226,6 +226,11 @@ async function processBlogs(sheet){
 			
 		}
 	}
+	var sheetError = false;
+	if (sheet.error.length > 0){
+		sheetError = true;
+		console.log('oh no: ' + sheet.error.length + ' ' + sheet.error);
+	}
 	if ((blogOps.length + postOps.length + sheetOps.length) > 0){
 		if (blogOps.length != 0){ //ignores this step if there's nothing to update/insert
 			Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
@@ -238,6 +243,7 @@ async function processBlogs(sheet){
 			});
 		}
 		if (sheetOps.length != 0){
+			sheetError = true;
 			Sheet.bulkWrite(sheetOps).then(res => {
 				console.log("New Errors: " + res.modifiedCount);
 			});
@@ -246,6 +252,14 @@ async function processBlogs(sheet){
 	else{
 		console.log("No Updates This Time.")
 	}
+	Sheet.findById(sheetId, function(err, sheet){ //tentative structuring, need to account for multiple sheets
+		Cluster.updateOne({'error.id' : sheet._id, _id : sheet.cluster},{'$set': {
+			'error.$.error': sheetError
+		}}, function(err){
+			console.log(err);
+			console.log('what is even going on');
+		});
+	});
 }
 
 function addBlogs(sheet){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
@@ -277,8 +291,12 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 			});
 		}
 		console.log(blogArray);
+		
+		var sheetError = false;
+		
 		Blog.bulkWrite(blogArray, {ordered: false}, function (err, res) {
 			if (err){
+				sheetError = true;
 				console.log("Err array" + err.writeErrors[0]);
 				console.log("Num inserted: " + err.result.result.nInserted);
 				let errorArray = err.writeErrors;
@@ -300,7 +318,7 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 			if (!cluster) return next (new Error('Could not load document.'));
 			else {
 				let title = sheet.title ? sheet.title : sheet.name;	
-				cluster.error.push({ "name" : title, "id" : sheet._id, "error" : false });
+				cluster.error.push({ "name" : title, "id" : sheet._id, "error" : sheetError });
 				cluster.save().then(cluster => {
 					console.log('Sheet pushed to Cluster');
 				}).catch(err => {
@@ -312,10 +330,10 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 	});
 }
 
-function updateBlogs(sheet){
+async function updateBlogs(sheet){
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
 	blogOps = [];
-	axios.get(uri).then((res) => {
+	await axios.get(uri).then((res) => {
 		let values = res.data.values;
 		let uris = [];
 		let startRow = parseInt(sheet.range.charAt(1));
@@ -352,7 +370,8 @@ function updateBlogs(sheet){
 		});
 		
 		Blog.bulkWrite(blogOps, {ordered: false}, function (err, res){ //bulkWrite all operations
-			if (err){
+			if (err){ 
+				
 				console.log("Err array" + err.writeErrors); //Report errors present back to sheet --> cluster
 				console.log("Num inserted: " + err.result.result.nInserted);
 				let errorArray = err.writeErrors;
@@ -372,6 +391,7 @@ function updateBlogs(sheet){
 			}
 		});
 	});
+	
 	//Start reprocessing the sheet here to check for new errors and blog posts.
 	processBlogs(sheet);
 }
