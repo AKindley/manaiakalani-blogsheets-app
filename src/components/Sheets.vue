@@ -14,7 +14,12 @@
 			<input :disabled="!editing" type="checkbox" id="checkbox" v-model="automated">
 			<button v-if="editing" style="float:right;margin-right:40px;margin-top:20px" @click="addSheet">save sheet to cluster</button>
 		</div>
-
+		<div v-if="errorList.length > 0" style="margin-top:40px;margin-left:40px;margin-right:40px;border:3px solid red;border-radius:4px;background-color:#ffb2ae;color:black">
+			<div style="padding:5px;border-bottom:3px solid red;background-color:#ff6961;font-size:larger"><b>Errors:</b></div>
+			<ul style="padding-inline-start:0px;list-style-type:none">
+				<b><li v-for="error in errorList" :key="`err-${error.row}`"><a target="_blank":href="cellLink + error.row">Row {{error.row}}: {{error.error}}</a></li></b>
+			</ul>
+		</div>
 		<div style="margin-top:40px;margin-left:40px;margin-right:40px">
 			<button @click="deleteSheet">DELETE SHEET</button>
 			<button @click="postProcess">Process This Sheet</button>
@@ -67,7 +72,8 @@
 			column: '',
 			rowNum: '',
 			sheetDATA: [],
-			automated: true
+			automated: true,
+			errorList: []
 			
 			}
 		},
@@ -148,6 +154,7 @@
 					this.rowNum = parseInt(this.cellRange[1]);
 					this.sheetUrl = 'https://docs.google.com/spreadsheets/d/' + temp.spreadsheetId;
 					this.automated = temp.automation;
+					this.errorList = temp.error;
 				});
 			},
 			editSheet () {
@@ -168,7 +175,12 @@
 				});
 			}
 		},
-		
+		computed: {
+			cellLink: function(){
+				let link = this.sheetUrl + '/edit#gid=0&range=' + this.cellRange.charAt(0);
+				return link;
+			}
+		},
 		watch: {
 			selectedSheet: function() {
 				if (this.SheetId !== 'add'){ 

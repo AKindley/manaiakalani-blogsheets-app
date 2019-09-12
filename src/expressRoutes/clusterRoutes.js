@@ -4,6 +4,7 @@ var express = require('express');
 var app = express();
 var clusterRoutes = express.Router();
 var Cluster = require('../models/clusterStructure');
+var Sheet = require('../models/sheetStructure');
 
 clusterRoutes.route('/add').post(function (req, res) {
 	var entry = new Cluster(req.body);
@@ -16,11 +17,27 @@ clusterRoutes.route('/add').post(function (req, res) {
 });
 
 clusterRoutes.route('/').get(function (req, res) {
-	Cluster.find(function (err, clusters){
+	Cluster.find(async function (err, clusters){
 		if(err){
 			console.log(err);
 		}
 		else {
+			for (cluster of clusters){
+				let errList = [];
+				await Sheet.find({cluster: cluster},function(err, sheets){
+					if (err){console.log(err)}
+					else{
+						let errCount = 0;
+						let errSheet = 0;
+						for (sheet of sheets){
+							errCount += sheet.error.length;
+							errSheet += 1
+						}
+						errList.push({"sheetCount" : errSheet, "errorCount" : errCount});
+						cluster.error = errList;
+					}
+				});
+			}
 			res.json(clusters);
 		}
 	});

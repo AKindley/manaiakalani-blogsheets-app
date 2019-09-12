@@ -8,9 +8,9 @@
 		</div>
 		<div style="position:absolute;right:0;height:100%;width:50%;/*background-color:red*/" v-if="cluster.error">
 			<ul id="errorList">
-				<li v-for="error in cluster.error" :style="[error.error ? {'background' : 'red'} : {'background':'green'}]">
-				{{error.name}}: {{error.error ? "ERROR" : "OK"}}
-				</li>
+				<li v-for="error in cluster.error" :key="`err-${error.sheetCount}`" :style="[error.errorCount ? {'background' : 'red'} : {'background':'green'}]" style="color:black">
+					{{error.errorCount}} {{error.errorCount > 1 ? "errors":"error"}} on {{error.sheetCount}} {{error.sheetCount > 1 ? "sheets":"sheet"}}
+				</li>	
 			</ul>
 		</div>
 	</div>

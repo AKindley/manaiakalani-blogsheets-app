@@ -1,11 +1,14 @@
 <template>
 	<div class="group-div" @click="sheetLink">
-		<div style="position:absolute;left:0;width:50%;height:100%">
+		<div style="position:absolute;left:0;width:50%;height:100%;background-color:white">
 			<ul style="list-style-type:none;text-align:left;font-size:large;">
 				<li>Name: {{sheet.title ? sheet.title : sheet.name}}</li>
 				<li>Cell Range: {{sheet.range}}</li>
 			</ul>
-		</div>				
+		</div>
+		<div style="position:absolute;right:0;height:100%;width:50%;background-color:white;text-align:center" v-if="sheet.error.length > 0">		
+			{{sheet.error.length}} {{sheet.error.length > 1 ? "errors":"error"}}
+		</div>
 	</div>
 </template>
 
@@ -13,7 +16,7 @@
 	export default {
 		name: 'SheetDiv',
 		props: {
-			sheet: Object,
+			sheet: Object
 		},
 		methods: {
 			sheetLink (event){

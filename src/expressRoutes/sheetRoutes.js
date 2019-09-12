@@ -143,28 +143,15 @@ async function processBlogs(mainSheet){
 	var blogOps = []; //array of operations for the bulkWrite at the end
 	var postOps = [];
 	var sheetOps = [];
-	var clusterOps = [];
 	var caught;
 	var sheet;
 	for (const blogInfo of blogArray){ //iterate over the blog info array
 		caught = false;
 		let blog = blogInfo.blog;
 		sheet = blog.sheet;
-		var op = {
-			updateOne: {
-				filter: {'error.id' : sheet._id, _id : sheet.cluster},
-				update: {'$set': {'error.$.error': true}}
-			}
-		};
 		
 		if (!blog.active){
 			continue;
-		}
-		
-		if (sheet.error.length > 0){
-			if (!clusterOps.some(e => toString(e.updateOne.filter['error.id']) === toString(sheet._id))){
-				clusterOps.push(op);
-			}
 		}
 		
 		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
@@ -183,9 +170,6 @@ async function processBlogs(mainSheet){
 				}
 			});
 			
-			if (!clusterOps.some(e => toString(e.updateOne.filter['error.id']) === toString(sheet._id))){
-				clusterOps.push(op);
-			}
 			caught = true;
 			
 		}); //new? post from the rss feed of the blog
@@ -250,8 +234,7 @@ async function processBlogs(mainSheet){
 			
 		}
 	}
-	console.log(clusterOps);
-	if (blogOps.length || postOps.length || sheetOps.length || clusterOps.length){
+	if (blogOps.length || postOps.length || sheetOps.length){
 		if (blogOps.length > 0){ //ignores this step if there's nothing to update/insert
 			Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
 				console.log("Updated Blogs: " + res.modifiedCount);
@@ -265,11 +248,6 @@ async function processBlogs(mainSheet){
 		if (sheetOps.length > 0){
 			Sheet.bulkWrite(sheetOps).then(res => {
 				console.log("New Errors: " + res.modifiedCount);
-			});
-		}
-		if (clusterOps.length > 0){
-			Cluster.bulkWrite(clusterOps).then(res => {
-				console.log("Updated Sheet Errors: " + res.modifiedCount);
 			});
 		}
 	}
@@ -351,7 +329,7 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 				processBlogs(sheet);
 			}
 		});
-		Cluster.findById(sheet.cluster, function(err, cluster){ //imperfect, sheets are never removed currently. No functionality to report changes/check errors from cluster level yet
+		/*Cluster.findById(sheet.cluster, function(err, cluster){ //imperfect, sheets are never removed currently. No functionality to report changes/check errors from cluster level yet
 			if (!cluster) return next (new Error('Could not load document.'));
 			else {
 				let title = sheet.title ? sheet.title : sheet.name;	
@@ -362,7 +340,7 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 					console.log('Could not push Sheet to Cluster');
 				});
 			}
-		});
+		});*/
 		
 	});
 }
