@@ -2,8 +2,6 @@
   <div>
 	<button @click="goBack" style="float:left">BACK</button>
     <img alt="Vue logo" src="../assets/logo.png"><br>
-	<div>
-	<button @click="twitterLog">Twitter login</button>
 		<label>Cluster Name: <div>
 			<input v-if="editing" v-model="clusterName" placeholder="name...">
 			<span v-if="!editing">{{clusterName}}</span>
@@ -12,15 +10,27 @@
 			<span v-if="!editing">{{clusterTwitter}}</span>
 			<input v-if="editing" v-model="clusterTwitter" placeholder="twitter...">
 		</div></label>
+	<div>
+	<div v-if="!groups.access_token&&cluster!=='add'&&loaded==true" style="height:75px;margin:auto;position:relative;color:black;margin-top:30px;overflow:hidden;font-size:larger;background-color:#4289ca">
+		<div style="height:35%;font-weight:bold;display:flex">
+			<label style="margin:auto;margin-bottom:0px">Sign in to Twitter to associate the account with this cluster:</label>
+		</div>
+		<div style="display:flex;align-items:center;margin:auto;height:65%;width:100%">
+			<img @click="twitterLog" style="margin:auto" src="../assets/tSignin.png"/>
+		</div>
+	</div>
 	<div v-if="cluster !== 'add'">
 		<button style="float:left;margin-top:10px;margin-left:40px" @click="sheetsGo">Add a sheet</button>
 		<button :disabled="!editing" style="float:right; margin-right:40px;margin-top:10px" @click="update">UPDATE</button>
 		<button style="float:right;margin-top:10px;" @click="editCluster">{{editing ? 'CANCEL' : 'EDIT CLUSTER'}}</button><br><br>
 		<div v-if="errorSheets.length > 0" style="margin-top:40px;margin-left:40px;margin-right:40px;border:3px solid red;border-radius:4px;background-color:#ffb2ae;color:black;padding-bottom:30px">
-			<div style="padding: 5px;font-size:larger;border-bottom:3px solid red;background-color:#ff6961"><b>Sheets With Errors:</b></div>
+			<div style="padding: 5px;font-size:larger;border-bottom:3px solid red;background-color:#ff6961"><b>Sheets With Errors: {{errorSheets.length}}</b></div>
 			<SheetDiv v-for="sheet in errorSheets" :key="sheet._id" :sheet="sheet" />
 		</div>
-		<SheetDiv v-for="sheet in okSheets" :key="sheet._id" :sheet="sheet"/>
+		<div v-if="okSheets.length" style="margin-top:40px;margin-left:40px;margin-right:40px;border:3px solid #1c43ab;border-radius:4px;background-color:white;color:black;padding-bottom:30px">
+			<div style="padding:5px;font-size:larger;border-bottom:3px solid #1c43ab;background-color:#4289ca"><b>Sheets</b></div>
+			<SheetDiv v-for="sheet in okSheets" :key="sheet._id" :sheet="sheet"/>
+		</div>
 	</div>
 	<div v-else>
 		<button @click="submitMe">Submit</button>
@@ -44,7 +54,8 @@ export default {
 		groups: {},
 		clusterName: '',
 		clusterTwitter: '',
-		clusterSheets: []
+		clusterSheets: [],
+		loaded: false
 	}
   },
   
@@ -106,6 +117,7 @@ export default {
 			this.groups = response.data;
 			this.clusterName = this.groups.name;
 			this.clusterTwitter = this.groups.twitter;
+			this.loaded = true;
 		});
 		let uri2 = '/sheets/' + this.cluster;
 		this.axios.get(uri2).then((response) => {
@@ -116,4 +128,8 @@ export default {
 }
 
 </script>
-
+<style>
+	img:hover{
+		cursor:pointer
+	}
+</style>

@@ -1,13 +1,16 @@
 <template>
 	<div class="group-div" @click="sheetLink">
-		<div style="position:absolute;left:0;width:50%;height:100%;background-color:white">
-			<ul style="list-style-type:none;text-align:left;font-size:large;">
-				<li>Name: {{sheet.title ? sheet.title : sheet.name}}</li>
-				<li>Cell Range: {{sheet.range}}</li>
-			</ul>
+		<div style="position:absolute;display:flex;align-items:center;left:0;width:65%;height:100%;background-color:white">
+			<div>
+				<ul style="list-style-type:none;text-align:left;font-size:larger;">
+					<li>{{sheet.title ? sheet.title : sheet.name}}</li>
+				</ul>
+			</div>
 		</div>
-		<div style="position:absolute;right:0;height:100%;width:50%;background-color:white;text-align:center" v-if="sheet.error.length > 0">		
-			{{sheet.error.length}} {{sheet.error.length > 1 ? "errors":"error"}}
+		<div class="err-sect" :style="[sheet.error.length ? {'background' : 'red'} : {'background':'green'}]" v-if="sheet.error.length > 0">		
+			<div style="width:100%;font-size:larger">
+				{{sheet.error.length}} {{sheet.error.length > 1 ? "Errors":"Error"}}
+			</div>
 		</div>
 	</div>
 </template>
@@ -28,9 +31,12 @@
 </script>
 
 <style scoped>
+	div:hover{
+		border-color: #4289ca
+	}
 	.group-div {
 		width:calc(100% - 80px);
-		height:100px;
+		height:40px;
 		margin:auto;
 		position:relative;
 		border:3px solid black;
@@ -40,11 +46,15 @@
 		cursor: pointer
 	}
 	
-	.group-div:hover{
-		border-color: #4289ca
+	.err-sect {
+		position:absolute;
+		right:0;height:100%;
+		width:35%;
+		background-color:white;
+		text-align:center;
+		border-left:inherit;
+		display:flex;
+		align-items:center;
 	}
-	
-	li {
-		padding-bottom:5px;
-	}
+
 </style>

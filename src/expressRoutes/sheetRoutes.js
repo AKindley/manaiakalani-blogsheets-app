@@ -346,7 +346,7 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 }
 
 async function updateBlogs(sheet){
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*sheet.range*/ + '?key=' + apiKey;
 	blogOps = [];
 	await axios.get(uri).then((res) => {
 		let values = res.data.values;
@@ -354,6 +354,7 @@ async function updateBlogs(sheet){
 		let startRow = parseInt(sheet.range.charAt(1));
 		
 		for (index = 0; index < values.length; index++){
+			console.log(index);
 			let uri = values[index][0];
 			let rowNum = startRow + index;
 			if (!uri){
@@ -528,6 +529,7 @@ sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in
 			sheet.range = req.body.range;
 			sheet.cluster = req.body.cluster;
 			sheet.spreadsheetId = req.body.spreadsheetId;
+			sheet.sheetId = req.body.sheetId;
 			sheet.automation = req.body.automation;
 			sheet.error = []; //reset errors on sheet update - will be repopulated if errors still exist
 			

@@ -51,7 +51,7 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 
 	app.get('/auth/twitter/test/:cluster', function(req, res, next){ //initial auth call, where passport begins the auth 1.0a process
 		req.session.cluster = req.params.cluster; //saves the cluster id to the session
-		passport.authenticate('twitter')(req,res,next); //begins the auth chain
+		passport.authenticate('twitter',{userAuthorizationURL: 'https://api.twitter.com/oauth/authenticate?force_login=true'})(req,res,next); //begins the auth chain
 	});
 
 	app.get('/auth/twitter/callback', passport.authenticate('twitter', //called when twitter responds
@@ -60,7 +60,7 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 	));
 	
 	app.get('/auth/google', passport.authenticate('google', //TODO: monitoring whether they're signed in with the correct domain.
-		{ scope: ['profile'], hostedDomain:['manaiakalani.org']}
+		{ scope: ['profile', 'email'], hostedDomain:['manaiakalani.org']}
 	));
 	
 	app.get('/auth/google/callback', 

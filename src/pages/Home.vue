@@ -16,7 +16,7 @@ export default {
   methods:{
 	  googleLog(event){
 		  event.preventDefault();
-		  window.open(server + '/auth/google');
+		  window.location = server + '/auth/google';
 	  }
   }
 }

@@ -64,6 +64,7 @@
 			sheetUrl: '',
 			curSheetId: '',
 			sheetsList: [],
+			sheetIdList: [],
 			selectedSheet: '',
 			rows: [],
 			rowInd: ['1','2','3','4','5','6','7','8','9','10'],
@@ -87,7 +88,8 @@
 					let sheets = response.data.sheets;
 					let sheet;
 					for (sheet in sheets){
-						this.sheetsList.push(sheets[sheet].properties.title)
+						this.sheetsList.push(sheets[sheet].properties.title);
+						this.sheetIdList.push(sheets[sheet].properties.sheetId);
 					}
 					this.selectedSheet = this.sheetsList[0];
 				});
@@ -119,11 +121,14 @@
 			addSheet(event){
 				event.preventDefault();
 				if (this.selectedSheet && this.cellRange && this.curSheetId && this.ClusterId){
+					let index = this.sheetsList.indexOf(this.selectedSheet);
+					let id = this.sheetIdList[index];
 					var newSheet = {
 						name: this.selectedSheet,
 						title: this.sheetName,
 						range: this.cellRange,
 						spreadsheetId: this.curSheetId,
+						sheetId: id,
 						cluster: this.ClusterId,
 						automation: this.automated
 					};
@@ -149,6 +154,7 @@
 					this.cellRange = temp.range;
 					this.selectedSheet = temp.name;
 					this.sheetsList[0] = temp.name;
+					this.sheetIdList[0] = temp.sheetId;
 					this.sheetName = temp.title;
 					this.column = this.cellRange[0];
 					this.rowNum = parseInt(this.cellRange[1]);
@@ -177,7 +183,7 @@
 		},
 		computed: {
 			cellLink: function(){
-				let link = this.sheetUrl + '/edit#gid=0&range=' + this.cellRange.charAt(0);
+				let link = this.sheetUrl + '/edit#gid=' + this.sheetIdList[0] + '&range=' + this.cellRange.charAt(0);
 				return link;
 			}
 		},

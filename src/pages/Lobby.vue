@@ -2,10 +2,12 @@
   <div>
 	<button @click="goBack" style="float:left">BACK</button>
     <img alt="Vue logo" src="../assets/logo.png"><br>
-	<span>CLUSTERS</span><br>
 	<button @click="add">ADD CLUSTER</button>
 	<button @click="processAll">Process All Sheets</button>
-	<ClusterDiv v-for="group in groups" :key="group.name" :cluster="group"/>
+	<div style="margin-top:40px;margin-left:40px;margin-right:40px;border:3px solid #1c43ab;border-radius:4px;background-color:white;color:black;padding-bottom:30px">
+		<div style="padding:5px;font-size:larger;border-bottom:3px solid #1c43ab;background-color:#4289ca"><b>Clusters</b></div>
+		<ClusterDiv v-for="group in groups" :key="group.name" :cluster="group"/>
+	</div>
   </div>
 </template>
 <script>

@@ -20,7 +20,8 @@ const express = require('express'),
 	app.use(express.static('public'));
 	app.use(bodyParser.json());
 	app.use(cors());
-	app.use(passport.initialize())
+	app.use(passport.initialize());
+	app.use(passport.session());
 	app.use(session({secret: 'keyboard cat', name:'tim', cookie:{secure: false}}));
 	app.use('/entries', clusterRoutes);
 	app.use('/sheets', sheetRoutes);
