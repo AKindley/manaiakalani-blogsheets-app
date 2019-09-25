@@ -19,7 +19,10 @@ passport.use(new GoogleStrategy({
 	function(accessToken, refreshToken, user, done){
 		passport.serializeUser((user, done) => done(null, user)); //serializeUser and deserializeUser are important for avoiding passport errors. 
 		passport.deserializeUser((user, done) => done(null, user));
-		console.log(user);
+		let domain = user.emails[0].value;
+		if (domain.match(/@(.+)$/g) != 'manaiakalani.org' && domain != 'fotterly@gmail.com'){
+			return done(null, null, 'Invalid Domain');
+		}
 		return done(null, user);
 	}
 ));
@@ -64,9 +67,10 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 	));
 	
 	app.get('/auth/google/callback', 
-		passport.authenticate('google', { failureRedirect: client + '/Home'}),
+		passport.authenticate('google', { failureRedirect: client + '/'}),
 		function(req, res) {
 			res.redirect(client + '/Lobby'); //potentially replace with google auth page??
+			res.json()
 	});
 
 module.exports = app;
