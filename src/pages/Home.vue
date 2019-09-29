@@ -12,13 +12,13 @@
 var config = require('../config.json');
 var server = config.serverAddress;
 export default {
-  name: 'home',
-  methods:{
-	  googleLog(event){
-		  event.preventDefault();
-		  window.location = server + '/auth/google';
-	  }
-  }
+	name: 'home',
+	methods:{
+		googleLog(event){
+			event.preventDefault();
+			window.open(server + '/auth/google');
+		}
+	}
 }
 
 </script>
