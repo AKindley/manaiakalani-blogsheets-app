@@ -1,4 +1,4 @@
-
+var secret = require('./secret.json');
 const express = require('express'),
 	session = require ('express-session'),
 	path = require('path'),
@@ -20,9 +20,9 @@ const express = require('express'),
 	app.use(express.static('public'));
 	app.use(bodyParser.json());
 	app.use(cors());
+	app.use(session({secret: secret.SESSION_SECRET, name:'Manaiakalani', cookie:{secure: false}}));
 	app.use(passport.initialize());
 	app.use(passport.session());
-	app.use(session({secret: 'keyboard cat', name:'tim', cookie:{secure: false}}));
 	app.use('/entries', clusterRoutes);
 	app.use('/sheets', sheetRoutes);
 	app.use(authRoutes);

@@ -10,15 +10,16 @@ var googleClient = secret.GOOGLE_CLIENT_ID;
 var googleSecret = secret.GOOGLE_CLIENT_SECRET;
 var passport = require('passport'), TwitterStrategy = require('passport-twitter').Strategy, GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 var Cluster = require('../models/clusterStructure');
-
+		
+passport.serializeUser((user, done) => done(null, user)); //serializeUser and deserializeUser are important for avoiding passport errors. 
+passport.deserializeUser((user, done) => done(null, user));
+		
 passport.use(new GoogleStrategy({
 	clientID: googleClient,
 	clientSecret: googleSecret,
 	callbackURL: server + "/auth/google/callback"
 	},
 	function(accessToken, refreshToken, user, done){
-		passport.serializeUser((user, done) => done(null, user)); //serializeUser and deserializeUser are important for avoiding passport errors. 
-		passport.deserializeUser((user, done) => done(null, user));
 		let domain = user.emails[0].value;
 		if (domain.match(/@(.+)$/g) != 'manaiakalani.org' && domain != 'fotterly@gmail.com'){
 			return done(null, null, 'Invalid Domain');
@@ -70,7 +71,16 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 		passport.authenticate('google', { failureRedirect: client + '/'}),
 		function(req, res) {
 			res.redirect(client + '/Lobby'); //potentially replace with google auth page??
-			res.json()
+			console.log(req.session);
+			console.log(req);
+	});
+	
+	app.get('/auth/google/session', function(res, req)	{
+		console.log(req.req.headers.cookie);
+		let values = req.req.headers.cookie.split("=");
+		let cookie = values[1];
+		
+		
 	});
 
 module.exports = app;
