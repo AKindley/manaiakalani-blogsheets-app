@@ -11,6 +11,7 @@ Vue.config.productionTip = false
 Vue.use(VueRouter);
 Vue.use(VueAxios, axios);
 axios.defaults.baseURL = server; //server url for backend http requests
+axios.defaults.withCredentials = true;
 
 const router = new VueRouter({
 	mode: 'history',

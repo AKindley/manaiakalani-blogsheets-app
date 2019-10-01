@@ -10,10 +10,12 @@ var googleClient = secret.GOOGLE_CLIENT_ID;
 var googleSecret = secret.GOOGLE_CLIENT_SECRET;
 var passport = require('passport'), TwitterStrategy = require('passport-twitter').Strategy, GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 var Cluster = require('../models/clusterStructure');
-		
+var Session = require('../models/sessionStructure');
+const axios = require('axios');
+	
 passport.serializeUser((user, done) => done(null, user)); //serializeUser and deserializeUser are important for avoiding passport errors. 
 passport.deserializeUser((user, done) => done(null, user));
-		
+	
 passport.use(new GoogleStrategy({
 	clientID: googleClient,
 	clientSecret: googleSecret,
@@ -63,24 +65,39 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 		failureRedirect: client + '/404'} //redirect for a failed auth chain
 	));
 	
-	app.get('/auth/google', passport.authenticate('google', //TODO: monitoring whether they're signed in with the correct domain.
+	app.get('/auth/google', passport.authenticate('google', 
 		{ scope: ['profile', 'email'], hostedDomain:['manaiakalani.org']}
 	));
 	
 	app.get('/auth/google/callback', 
 		passport.authenticate('google', { failureRedirect: client + '/'}),
 		function(req, res) {
-			res.redirect(client + '/Lobby'); //potentially replace with google auth page??
-			console.log(req.session);
-			console.log(req);
+			var session = new Session({
+				sessionID: req.sessionID
+			});
+			session.save().then(
+				entry => {
+					res.redirect(client + '/Lobby');
+				}).catch(err => {
+					res.redirect(client + '/');
+			});
 	});
 	
-	app.get('/auth/google/session', function(res, req)	{
-		console.log(req.req.headers.cookie);
-		let values = req.req.headers.cookie.split("=");
+	app.get('/auth/google/session', async function(req, res)	{
+		let values = req.headers.cookie.split("=s%3A");
 		let cookie = values[1];
-		
-		
+		let sessionID = cookie.split(".")[0];
+		await Session.findOne({sessionID: sessionID}, function(err, session){
+			if (err){console.log(err)}
+			else if (session){
+				console.log(session);
+				session.expireAt = Date.now();
+				session.save();
+			}
+			else {
+				res.status(403).send(false);
+			}
+		});
 	});
 
 module.exports = app;

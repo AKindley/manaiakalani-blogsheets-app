@@ -38,15 +38,20 @@ export default {
 				console.log(res);
 			});
 		},
-		sessionCall (event) {
-			event.preventDefault();
-			this.axios.get('/auth/google/session', {withCredentials: true});
+		sessionCall () {
+			this.axios.get('/auth/google/session', {withCredentials: true}).then((res) => {
+				
+			}).catch((err) => {
+				window.location = 'http://localhost:8080/';
+			});
 		}
   },
   mounted () {
-		let uri = '/entries/';
-		this.axios.get(uri).then((response) => {
-			this.groups = response.data;
+		this.sessionCall().then(() => {
+			let uri = '/entries/';
+			this.axios.get(uri).then((response) => {
+				this.groups = response.data;
+			});
 		});
   }
 }

@@ -14,13 +14,30 @@ var Sheet = require('../models/sheetStructure');
 var Blog = require('../models/blogStructure');
 var Post = require('../models/postStructure');
 var Cluster = require('../models/clusterStructure');
+var Session = require('../models/sessionStructure');
 let Parser = require('rss-parser');
 var parser = new Parser();
 var moment = require('moment');
 var Twit = require('twit');
 const axios = require('axios');
 
-
+async function authCheck(req, res){
+	let values = req.headers.cookie.split("=s%3A");
+		let cookie = values[1];
+		let sessionID = cookie.split(".")[0];
+		await Session.findOne({sessionID: sessionID}, function(err, session){
+			if (err){console.log(err)}
+			else if (session){
+				session.expireAt = Date.now();
+				session.save();
+				return true;
+			}
+			else {
+				res.status(403).send(false);
+				return false;
+			}
+		});
+}
 async function rssParse(uri){ //This thing returns a promise, don't touch any of the async/await stuff unless you know what you're doing thanks
 	return new Promise(await function(resolve, reject) {
 		rssUrl = uri + '/feeds/posts/default?rss'; //rss url incase we need it for later meddling
@@ -431,7 +448,11 @@ sheetRoutes.route('/test').get(async function (req, res){
 	res.json(item.content)
 });
 
-sheetRoutes.route('/add').post(function (req, res) { //Adds sheets to the database w/ url and range etc. Refer to the ./src/models folder for database structure info
+sheetRoutes.route('/add').post(async function (req, res) { //Adds sheets to the database w/ url and range etc. Refer to the ./src/models folder for database structure info
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	var entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.
 		entry.save().then(
 			entry => {
@@ -442,7 +463,11 @@ sheetRoutes.route('/add').post(function (req, res) { //Adds sheets to the databa
 			});
 });
 
-sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
+sheetRoutes.route('/process/:id').post(async function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	let id = req.params.id; //Need to implement per cluster. 
 	if (id == 'complete'){ //Processes the entire collection of blogs, except for inactive or manual update blogs. 
 		//processBlogs();
@@ -462,7 +487,11 @@ sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for r
 	res.status(200).send("Schroedinger's Database"); //Chrome was complaining about not getting a response
 });
 
-sheetRoutes.route('/:id').get(function (req, res) { //Potentially smart to better name this call. 
+sheetRoutes.route('/:id').get(async function (req, res) { //Potentially smart to better name this call.
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	let id = req.params.id;
 	Sheet.find({ cluster: id },function (err, sheet){//Requests sheets from the db by their cluster.
 		if(err){
@@ -473,7 +502,11 @@ sheetRoutes.route('/:id').get(function (req, res) { //Potentially smart to bette
 		}
 	});
 });
-sheetRoutes.route('/getSpreadsheet/:id').get(function (req, res){ //Another google sheets request thing. This is used when getting all the sheet values rather than just a single range. Still don't know if we need both. Probably not. 
+sheetRoutes.route('/getSpreadsheet/:id').get(async function (req, res){ //Another google sheets request thing. This is used when getting all the sheet values rather than just a single range. Still don't know if we need both. Probably not. 
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	let spreadsheetId = req.params.id;
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
@@ -483,7 +516,11 @@ sheetRoutes.route('/getSpreadsheet/:id').get(function (req, res){ //Another goog
 	});
 });
 
-sheetRoutes.route('/getSheet/:id/:name').get(function (req, res){ //Honestly I don't know why there's three of them. Review where these are used. 
+sheetRoutes.route('/getSheet/:id/:name').get(async function (req, res){ //Honestly I don't know why there's three of them. Review where these are used. 
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	let id = req.params.id;
 	let name = req.params.name;
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + name + '!A1:J10?key=' + apiKey;
@@ -493,7 +530,11 @@ sheetRoutes.route('/getSheet/:id/:name').get(function (req, res){ //Honestly I d
 		console.log(error);
 	});
 });
-sheetRoutes.route('/loadSheet/:id').get(function (req, res){
+sheetRoutes.route('/loadSheet/:id').get(async function (req, res){
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	Sheet.findById(req.params.id, function(err, sheet) { //We don't store the sheet values in the db, so we request them from google when editing a sheet. 
 		if(err){
 			console.log(err);
@@ -509,7 +550,11 @@ sheetRoutes.route('/loadSheet/:id').get(function (req, res){
 	});
 });
 
-sheetRoutes.route('/get/:id').get(function (req, res) {
+sheetRoutes.route('/get/:id').get(async function (req, res) {
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	Sheet.findById(req.params.id, function(err, sheet) { //gets a sheet from the db by the sheet id
 		if(err){
 			console.log(err);
@@ -520,7 +565,11 @@ sheetRoutes.route('/get/:id').get(function (req, res) {
 	});
 });
 
-sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in the database with new values.
+sheetRoutes.route('/update/:id').post(async function (req, res) { //Updates a sheet in the database with new values.
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	Sheet.findById(req.params.id, async function(err, sheet) {
 		if (!sheet) return next (new Error('Could not load Document'));
 		else {
@@ -545,7 +594,11 @@ sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in
 	});
 });
 
-sheetRoutes.route('/delete/:id').get(function (req, res) { //Deletes a sheet from the db 
+sheetRoutes.route('/delete/:id').get(async function (req, res) { //Deletes a sheet from the db 
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	Sheet.findByIdAndRemove({_id: req.params.id}, async function(err, sheet){
 		////////////////////////////////////////////
 		/////NOT INTENDED FOR FINAL ITERATION///////

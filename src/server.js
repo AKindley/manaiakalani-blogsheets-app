@@ -19,8 +19,8 @@ const express = require('express'),
 	mongoose.set('useFindAndModify', false);
 	app.use(express.static('public'));
 	app.use(bodyParser.json());
-	app.use(cors());
-	app.use(session({secret: secret.SESSION_SECRET, name:'Manaiakalani', cookie:{secure: false}}));
+	app.use(cors({credentials: true, origin: 'http://127.0.0.1:8080'}));
+	app.use(session({secret: secret.SESSION_SECRET, name:'Manaiakalani', cookie:{secure: false}})); //secure should be true
 	app.use(passport.initialize());
 	app.use(passport.session());
 	app.use('/entries', clusterRoutes);
