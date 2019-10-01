@@ -8,10 +8,14 @@ var Sheet = require('../models/sheetStructure');
 var Session = require('../models/sessionStructure');
 
 async function authCheck(req, res){
+	if (!req.headers.cookie){
+		res.send(false);
+		return false;
+	}
 	let values = req.headers.cookie.split("=s%3A");
 		let cookie = values[1];
 		let sessionID = cookie.split(".")[0];
-		await Session.findOne({sessionID: sessionID}, function(err, session){
+		return await Session.findOne({sessionID: sessionID}, function(err, session){
 			if (err){console.log(err)}
 			else if (session){
 				session.expireAt = Date.now();
@@ -19,7 +23,7 @@ async function authCheck(req, res){
 				return true;
 			}
 			else {
-				res.status(403).send(false);
+				res.send(false);
 				return false;
 			}
 		});

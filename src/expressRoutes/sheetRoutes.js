@@ -22,10 +22,14 @@ var Twit = require('twit');
 const axios = require('axios');
 
 async function authCheck(req, res){
+	if (!req.headers.cookie){
+		res.send(false);
+		return false;
+	}
 	let values = req.headers.cookie.split("=s%3A");
 		let cookie = values[1];
 		let sessionID = cookie.split(".")[0];
-		await Session.findOne({sessionID: sessionID}, function(err, session){
+		return await Session.findOne({sessionID: sessionID}, function(err, session){
 			if (err){console.log(err)}
 			else if (session){
 				session.expireAt = Date.now();
@@ -33,7 +37,7 @@ async function authCheck(req, res){
 				return true;
 			}
 			else {
-				res.status(403).send(false);
+				res.send(false);
 				return false;
 			}
 		});
@@ -83,6 +87,9 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 }
 function download(uri, filename, callback){ //download function for images
 	request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
+		if(!res){
+			return callback;
+		}
 		console.log('content-type:', res.headers['content-type']);
 		console.log('content-length:', res.headers['content-length']);
 		
@@ -91,6 +98,9 @@ function download(uri, filename, callback){ //download function for images
 }
 
 function tweet(post, cluster){
+	console.log("Tweeting");
+	console.log(post.title);
+	console.log(cluster);
 	let T  = new Twit({
 		consumer_key: consumerKey,
 		consumer_secret: consumerSecret,
@@ -128,6 +138,7 @@ function tweet(post, cluster){
 	else{ //
 		//Do media upload + tweet stuff here
 		var file = crypto.randomBytes(10).toString('hex') + '.png'; //Generate randomised filename to avoid conflicts
+		console.log(firstImg);
 		download(firstImg.attributes.src, file, function(){ //do a temporary dl of image using link
 			var b64 = fs.readFileSync('./' + file, {encoding: 'base64'}); //encoded to base64
 			T.post('media/upload', { media_data: b64 }, function(err, data, response){ //upload image with Twit

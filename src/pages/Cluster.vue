@@ -43,60 +43,73 @@ import SheetDiv from '../components/SheetDiv.vue'
 var config = require('../config.json');
 var server = config.serverAddress;
 export default {
-  name: 'clusterzz',
-  props: ['cluster'],
-  components: {
-	SheetDiv,
-  },
-  data () {
-	return {
-		editing: this.cluster === 'add' ? true : false,
-		groups: {},
-		clusterName: '',
-		clusterTwitter: '',
-		clusterSheets: [],
-		loaded: false
-	}
-  },
+	name: 'clusterzz',
+	props: ['cluster'],
+	components: {
+		SheetDiv,
+	},
+	data () {
+		return {
+			editing: this.cluster === 'add' ? true : false,
+			groups: {},
+			clusterName: '',
+			clusterTwitter: '',
+			clusterSheets: [],
+			loaded: false
+		}
+	},
   
-  methods: {
-	sheetsGo () {
-		this.$router.push(window.location.pathname + '/add');
+	methods: {
+		sheetsGo () {
+			this.$router.push(window.location.pathname + '/add');
+		},
+		sheetsGoPlease (event) {
+			this.$router.push(window.location.pathname + '/' + event.currentTarget.getAttribute('data-key'));
+		},
+		async submitMe (event) {
+			event.preventDefault();
+			if(await this.sessionCall()){
+				let uri = server + '/entries/add';
+				let testThing = {};
+				testThing.name = this.clusterName;
+				testThing.twitter = this.clusterTwitter;
+				this.axios.post(uri, testThing);
+				this.$router.go(-1);
+			}
+			else{this.$router.push('/');}
+		},
+		goBack () {
+			this.$router.go(-1);
+		},
+		async update (event) {
+			event.preventDefault();
+			if(await this.sessionCall()){
+				let uri = '/entries/update/' + this.cluster;
+				let testThing = this.groups;
+				testThing.name = this.clusterName;
+				testThing.twitter = this.clusterTwitter;
+				this.axios.post(uri, testThing);
+			}
+			else{this.$router.push('/');}
+		},
+		editCluster (event) {
+			event.preventDefault();
+			this.editing = !this.editing;
+		},
+		async twitterLog(event) {
+			event.preventDefault();
+			if(await this.sessionCall()){
+				window.open( server + '/auth/twitter/test/' + this.cluster); //Twitter auth link call
+			}
+			else{this.$router.push('/');}
+		},
+		async sessionCall () {
+			return await this.axios.get('/auth/google/session').then((res) => {
+				return res.data;
+				});
+		}
 	},
-	sheetsGoPlease (event) {
-		this.$router.push(window.location.pathname + '/' + event.currentTarget.getAttribute('data-key'));
-	},
-	submitMe (event) {
-		event.preventDefault();
-		let uri = server + '/entries/add';
-		let testThing = {};
-		testThing.name = this.clusterName;
-		testThing.twitter = this.clusterTwitter;
-		this.axios.post(uri, testThing);
-		this.$router.go(-1);
-	},
-	goBack () {
-		this.$router.go(-1);
-	},
-	update (event) {
-		event.preventDefault();
-		let uri = '/entries/update/' + this.cluster;
-		let testThing = this.groups;
-		testThing.name = this.clusterName;
-		testThing.twitter = this.clusterTwitter;
-		this.axios.post(uri, testThing);
-		
-	},
-	editCluster (event) {
-		event.preventDefault();
-		this.editing = !this.editing;
-	},
-	twitterLog(event) {
-		event.preventDefault();
-		window.open( server + '/auth/twitter/test/' + this.cluster); //Twitter auth link call
-	}
-  },
-  computed:{
+	computed:{
 		errorSheets: function(){
 			let sArray = this.clusterSheets.filter(function(sheet){ 
 				return sheet.error.length > 0;
@@ -109,22 +122,28 @@ export default {
 			});
 			return sArray;
 		}
-  },
-  mounted () {
-	if (this.cluster !== 'add') {
-		let uri = '/entries/edit/' + this.cluster;
-		this.axios.get(uri).then((response) => {
-			this.groups = response.data;
-			this.clusterName = this.groups.name;
-			this.clusterTwitter = this.groups.twitter;
-			this.loaded = true;
-		});
-		let uri2 = '/sheets/' + this.cluster;
-		this.axios.get(uri2).then((response) => {
-			this.clusterSheets = response.data;
-		});
+	},
+	mounted () {
+		if (this.cluster !== 'add') {
+			let uri = '/entries/edit/' + this.cluster;
+			this.axios.get(uri).then((response) => {
+				if(response.data){
+					this.groups = response.data;
+					this.clusterName = this.groups.name;
+					this.clusterTwitter = this.groups.twitter;
+					this.loaded = true;
+				}
+				else{this.$router.push('/');}
+			});
+			let uri2 = '/sheets/' + this.cluster;
+			this.axios.get(uri2).then((response) => {
+				if (response.data){
+					this.clusterSheets = response.data;
+				}
+				else{this.$router.push('/');}
+			});
+		}
 	}
-  }
 }
 
 </script>

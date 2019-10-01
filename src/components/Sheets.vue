@@ -85,6 +85,10 @@
 				this.curSheetId = this.sheetUrl.match(exp)[1];
 				let uri = '/sheets/getSpreadsheet/' + this.curSheetId;
 				this.axios.get(uri).then((response) => {
+					if (!response.data){
+						this.$router.push('/');
+						return;
+					}
 					let sheets = response.data.sheets;
 					let sheet;
 					for (sheet in sheets){
@@ -134,12 +138,22 @@
 					};
 					if (this.SheetId === 'add'){
 						let uri = '/sheets/add';
-						this.axios.post(uri, newSheet);
+						this.axios.post(uri, newSheet).then((response) => {
+							if (!response.data){
+								this.$router.push('/');
+								return;
+							}
+						});
 						this.$router.go(-1);
 					}
 					else{
 						let uri = '/sheets/update/' + this.SheetId;
-						this.axios.post(uri, newSheet);
+						this.axios.post(uri, newSheet).then((response) => {
+							if (!response.data){
+								this.$router.push('/');
+								return;
+							}
+						});
 					}
 				}
 				else{
@@ -149,6 +163,10 @@
 			loadSheet () {
 				let uri = '/sheets/get/' + this.SheetId;
 				this.axios.get(uri).then((response) => {
+					if (!response.data){
+						this.$router.push('/');
+						return;
+					}
 					let temp = response.data;
 					this.curSheetId = temp.spreadsheetId;
 					this.cellRange = temp.range;
@@ -170,6 +188,10 @@
 				event.preventDefault();
 				self = this;
 				this.axios.get('/sheets/delete/' + this.SheetId).then((response) => {
+					if (!response.data){
+						this.$router.push('/');
+						return;
+					}
 					console.log(response);
 					self.$router.go(-1);
 				});
@@ -177,6 +199,10 @@
 			postProcess (event){
 				event.preventDefault();
 				this.axios.post('/sheets/process/' + this.SheetId).then((res)=>{
+					if (!res.data){
+						this.$router.push('/');
+						return;
+					}
 					console.log(res);
 				});
 			}
@@ -192,12 +218,20 @@
 				if (this.SheetId !== 'add'){ 
 					let uri = '/sheets/loadSheet/' + this.SheetId;
 					this.axios.get(uri).then((response) => {
+						if (!response.data){
+							this.$router.push('/');
+							return;
+						}
 						this.rows = response.data.values;
 					});
 				}
 				else{
 					let uri = '/sheets/getSheet/' + this.curSheetId + '/' + this.selectedSheet;
 					this.axios.get(uri).then((response) => {
+						if (!response.data){
+							this.$router.push('/');
+							return;
+						}
 						this.rows = response.data.values;
 					});
 				}

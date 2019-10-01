@@ -21,12 +21,17 @@ export default {
 		goBack(event){
 			event.preventDefault();
 			this.$router.go(-1);
-		},	
+		}
 	},
 	mounted () {
-		if (this.sheet !== 'add'){
-			this.$refs.sheets.loadSheet();
-		}
+		this.axios.get('/auth/google/session').then((res) => {
+			if(res.data){
+				if (this.sheet !== 'add'){
+					this.$refs.sheets.loadSheet();
+				}
+			}
+			else{this.$router.push('/');}
+		});
 	}
 
 }

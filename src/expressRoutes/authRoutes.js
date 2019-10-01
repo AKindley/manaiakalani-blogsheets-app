@@ -84,6 +84,10 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 	});
 	
 	app.get('/auth/google/session', async function(req, res)	{
+		if (!req.headers.cookie){
+			res.send(false);
+			return;
+		}
 		let values = req.headers.cookie.split("=s%3A");
 		let cookie = values[1];
 		let sessionID = cookie.split(".")[0];
@@ -93,9 +97,10 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 				console.log(session);
 				session.expireAt = Date.now();
 				session.save();
+				res.send(true);
 			}
 			else {
-				res.status(403).send(false);
+				res.send(false);
 			}
 		});
 	});

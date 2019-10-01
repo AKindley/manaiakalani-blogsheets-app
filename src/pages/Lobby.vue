@@ -34,24 +34,26 @@ export default {
 		},
 		processAll (event) {
 			event.preventDefault();
-			this.axios.post('/sheets/process/complete').then((res)=>{
-				console.log(res);
-			});
+			if (this.sessionCall()){
+				this.axios.post('/sheets/process/complete').then((res)=>{
+					console.log(res);
+				});
+			}
+			else{this.$router.push('/')}
 		},
 		sessionCall () {
-			this.axios.get('/auth/google/session', {withCredentials: true}).then((res) => {
-				
-			}).catch((err) => {
-				window.location = 'http://localhost:8080/';
+			this.axios.get('/auth/google/session').then((res) => {
+				return res.data;
 			});
 		}
   },
   mounted () {
-		this.sessionCall().then(() => {
-			let uri = '/entries/';
-			this.axios.get(uri).then((response) => {
+		let uri = '/entries/';
+		this.axios.get(uri).then((response) => {
+			if (response.data){
 				this.groups = response.data;
-			});
+			}
+			else{this.$router.push('/');}
 		});
   }
 }
