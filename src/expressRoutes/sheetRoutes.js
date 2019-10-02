@@ -86,21 +86,21 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 	});
 }
 function download(uri, filename, callback){ //download function for images
-	request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
-		if(!res){
-			return callback;
-		}
-		console.log('content-type:', res.headers['content-type']);
-		console.log('content-length:', res.headers['content-length']);
-		
-		request(uri).pipe(fs.createWriteStream(filename)).on('close', callback); //writestream for file saving
-	});
+	if (uri.substring(0,35).includes('base64,')){
+		let b64 = uri.split('base64,')[1];
+		callback(b64);
+	}
+	else{
+		request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
+			console.log('content-type:', res.headers['content-type']);
+			console.log('content-length:', res.headers['content-length']);
+			
+			request(uri).pipe(fs.createWriteStream(filename)).on('close', callback); //writestream for file saving
+		});
+	}
 }
 
 function tweet(post, cluster){
-	console.log("Tweeting");
-	console.log(post.title);
-	console.log(cluster);
 	let T  = new Twit({
 		consumer_key: consumerKey,
 		consumer_secret: consumerSecret,
@@ -138,9 +138,15 @@ function tweet(post, cluster){
 	else{ //
 		//Do media upload + tweet stuff here
 		var file = crypto.randomBytes(10).toString('hex') + '.png'; //Generate randomised filename to avoid conflicts
-		console.log(firstImg);
-		download(firstImg.attributes.src, file, function(){ //do a temporary dl of image using link
-			var b64 = fs.readFileSync('./' + file, {encoding: 'base64'}); //encoded to base64
+		download(firstImg.attributes.src, file, function(data){ //do a temporary dl of image using link
+			var b64;
+			if(data){
+				b64 = data;
+				file = null
+			}
+			else{
+				var b64 = fs.readFileSync('./' + file, {encoding: 'base64'}); //encoded to base64
+			}
 			T.post('media/upload', { media_data: b64 }, function(err, data, response){ //upload image with Twit
 				var mediaIdStr = data.media_id_string;
 				var altText = "picture";
@@ -154,10 +160,12 @@ function tweet(post, cluster){
 						T.post('statuses/update', params, function (err, data, response){ //update status with tweet text and post w/ media. 
 							if (err){console.log(err);}
 							//console.log(data);
-							fs.unlink('./' + file, (err) => { //remove temp image storage from server after upload and posting complete
-								if (err) throw err;
-								console.log(file +' was deleted'); //Test stuff
-							});
+							if (file){
+								fs.unlink('./' + file, (err) => { //remove temp image storage from server after upload and posting complete
+									if (err) throw err;
+									console.log(file +' was deleted'); //Test stuff
+								});
+							}
 						});
 					}
 				});
