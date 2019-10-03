@@ -34,12 +34,11 @@ export default {
 		},
 		processAll (event) {
 			event.preventDefault();
-			if (this.sessionCall()){
-				this.axios.post('/sheets/process/complete').then((res)=>{
-					console.log(res);
-				});
-			}
-			else{this.$router.push('/')}
+			this.axios.post('/sheets/process/complete').then((res)=>{
+				if (!res.data){
+					this.$router.push('/');
+				}
+			});
 		},
 		sessionCall () {
 			this.axios.get('/auth/google/session').then((res) => {

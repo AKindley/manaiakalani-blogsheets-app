@@ -19,6 +19,7 @@ let Parser = require('rss-parser');
 var parser = new Parser();
 var moment = require('moment');
 var Twit = require('twit');
+var util = require('util');
 const axios = require('axios');
 
 async function authCheck(req, res){
@@ -85,92 +86,162 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 		resolve(blogArray); //Return the array of objects
 	});
 }
-function download(uri, filename, callback){ //download function for images
-	if (uri.substring(0,35).includes('base64,')){
-		let b64 = uri.split('base64,')[1];
-		callback(b64);
-	}
-	else{
-		request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
-			console.log('content-type:', res.headers['content-type']);
-			console.log('content-length:', res.headers['content-length']);
-			
-			request(uri).pipe(fs.createWriteStream(filename)).on('close', callback); //writestream for file saving
+async function download(uri, filename){ //download function for images
+	return new Promise(function(resolve, reject){
+		if (uri.substring(0,35).includes('base64,')){
+			let b64 = uri.split('base64,')[1];
+			resolve(b64);
+		}
+		else{
+			request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
+				console.log('content-type:', res.headers['content-type']);
+				console.log('content-length:', res.headers['content-length']);
+				if (err) reject(err);
+				
+				request(uri).pipe(fs.createWriteStream(filename)).on('close', function(){resolve();}); //writestream for file saving
+			});
+		}
+	});
+}
+async function twitUpload(T, options){
+	return new Promise(function(resolve, reject){
+		T.post('media/upload', options, function(err, data, response){
+			if (err) reject(err);
+			resolve(data);
 		});
-	}
+	});
 }
 
-function tweet(post, cluster){
-	let T  = new Twit({
+async function twitCreate(T, options){
+	return new Promise(function(resolve, reject){
+		T.post('media/metadata/create', options, function(err, data, response){
+			if (err) reject(err);
+			resolve(data);
+		});
+	});
+}
+
+async function twitPost(T, options){
+	return new Promise (function(resolve, reject){
+		T.post('status/update', options, function(err, data, response){
+			if (err) reject(err);
+			resolve(data);
+		});
+	});
+}
+async function tweet (post, cluster){
+	var T = new Twit({
 		consumer_key: consumerKey,
 		consumer_secret: consumerSecret,
 		access_token: cluster.access_token,
 		access_token_secret: cluster.access_token_secret
 	});
-	
-	var newTweet = post.title + ' ' + post.url + ' ' + post.snippet;
+		
+	let newTweet = post.title + ' ' + post.url + ' ' + post.snippet;
 	if (newTweet.length >= 280){
 		newTweet = newTweet.substring(0, 277) + '...';
 	}
-	var xmlString = post.content;
-	var doc = HTMLParser.parse(xmlString);
+	let xmlString = post.content;
+	let doc = HTMLParser.parse(xmlString);
 	let firstImg = doc.querySelector("img");
 	let firstIframe = doc.querySelector("iframe");
-	//console.log('This is the iframe? ----> ' + firstIframe); // Test Statements
-	if ((firstImg == undefined || firstImg == null) && (firstIframe != undefined && firstIframe != null)){
-		var iframeLink = firstIframe.attributes.src;
-		console.log(typeof(iframeLink));
+	
+	if (!firstImg && firstIframe){
+		let iframeLink = firstIframe.attributes.src;
 		if (newTweet.length + 25 >= 280){
 			newTweet = newTweet.substring(0, 252) + '... ' + iframeLink;
-			//console.log('This is the newtweet ---> ' + newTweet); // Test Statements
 		}
 		else {
 			newTweet = newTweet + ' ' + iframeLink;
 		}
 	}
 	
-	if (firstImg == undefined || firstImg == null){ //If there's no image in the post
-		//Do "non-media" tweet stuff here as well as iframe source links
-		T.post('statuses/update', {status: newTweet}, function(err, data, response){ //normal tweet
-			//console.log(data);
-		});
-	}
-	else{ //
-		//Do media upload + tweet stuff here
-		var file = crypto.randomBytes(10).toString('hex') + '.png'; //Generate randomised filename to avoid conflicts
-		download(firstImg.attributes.src, file, function(data){ //do a temporary dl of image using link
-			var b64;
-			if(data){
-				b64 = data;
-				file = null
-			}
-			else{
-				var b64 = fs.readFileSync('./' + file, {encoding: 'base64'}); //encoded to base64
-			}
-			T.post('media/upload', { media_data: b64 }, function(err, data, response){ //upload image with Twit
-				var mediaIdStr = data.media_id_string;
-				var altText = "picture";
-				var meta_params = { media_id: mediaIdStr, alt_text: {text: altText}}
-				if (err){console.log(err);}
-				T.post('media/metadata/create', meta_params, function(err, data, response){ //create media metadata with Twit
-					if (err){console.log(err);}
-					if (!err){
-						var params = {status: newTweet, media_ids: [mediaIdStr] }
-						
-						T.post('statuses/update', params, function (err, data, response){ //update status with tweet text and post w/ media. 
-							if (err){console.log(err);}
-							//console.log(data);
-							if (file){
-								fs.unlink('./' + file, (err) => { //remove temp image storage from server after upload and posting complete
-									if (err) throw err;
-									console.log(file +' was deleted'); //Test stuff
-								});
-							}
-						});
-					}
-				});
+	if (!firstImg){
+		for (i = 0; i < 3; i++){
+			await twitPost(T, {status: newTweet}).then((data) => {
+				i = 3;
+			}).catch(err => {
+				if (err.code == 187){
+					console.log(err);
+					i = 3;
+				}
+				else if (i >= 2){
+					console.log(err);
+					i = 3;
+				}
 			});
-		}); 
+			console.log(i);
+		}
+	}	
+	else{
+		let file = crypto.randomBytes(10).toString('hex') + '.png';
+		let imgData = await download(firstImg.attributes.src, file);
+		let b64;
+		if (imgData) {
+			b64 = imgData;
+			file = null;
+		}
+		else {
+			b64 = fs.readFileSync('./' + file, {encoding: 'base64'});
+		}
+		
+		let mediaId = await twitUpload(T, {media_data: b64});
+		await twitCreate(T, {media_id: mediaId});
+		let params = {status: newTweet, media_ids: [mediaIdStr]};
+		
+		for (i = 0; i < 3; i++){
+			console.log('Loop #' + (i + 1) + " on thing: " + newTweet);
+			await twitPost(T, params).then((data) => {
+				i = 3;
+			}).catch((err) => {
+				if (err.code == 187){
+					console.log(err);
+					i = 3;
+				}
+				else if (i >= 2){
+					console.log(err);
+					i = 3;
+				}
+			});
+		}
+		
+		if (file){
+			fs.unlink('./' + file, (err) => {
+				if (err) throw err;
+				console.log(file + ' was deleted');
+			});
+		}
+		
+		/*twitPost('media/upload', {media_data: b64}).then(data => {
+			let mediaIdStr = data.media_id_string;
+			let meta_params = {media_id: mediaIdStr};
+			twitPost('media/metadata/create', meta_params).then((data) => {
+				let params = {status: newTweet, media_ids: [mediaIdStr]};
+				for (i = 0; i < 3; i++){
+					console.log("Loop #" + i + " on thingy: " + newTweet);
+					twitPost('statuses/update', params).then((data) => {
+						if (file){
+							fs.unlink('./' + file, (err) => {
+								if (err) throw err;
+								console.log(file + ' was deleted');
+							});
+						}
+						i = 3;
+						console.log(i);
+					}).catch((err) => {
+						if (err.code == 187){
+							console.log(err);
+							console.log(i);
+							i = 3;
+						}
+						else if (i >= 2){
+							console.log(err);
+							i = 3;
+						}
+					});
+				}
+			})
+			}).catch(err => console.log(err))*/
 	}
 }
 

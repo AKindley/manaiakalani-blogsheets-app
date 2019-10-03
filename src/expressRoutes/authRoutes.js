@@ -94,7 +94,6 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 		await Session.findOne({sessionID: sessionID}, function(err, session){
 			if (err){console.log(err)}
 			else if (session){
-				console.log(session);
 				session.expireAt = Date.now();
 				session.save();
 				res.send(true);
