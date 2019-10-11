@@ -2,6 +2,7 @@ var fs = require('fs'), request = require('request');
 var HTMLParser = require('node-html-parser');
 //////////////////////////////////////////////
 var secret = require('../secret.json');
+var config = require('../config.json');
 var apiKey = secret.API_KEY;
 var consumerKey = secret.TWITTER_API_KEY;
 var consumerSecret = secret.TWITTER_API_KEY_SECRET;
@@ -20,6 +21,7 @@ var parser = new Parser();
 var moment = require('moment');
 var Twit = require('twit');
 var util = require('util');
+var processing = false;
 const axios = require('axios');
 
 async function authCheck(req, res){
@@ -43,6 +45,7 @@ async function authCheck(req, res){
 			}
 		});
 }
+
 async function rssParse(uri){ //This thing returns a promise, don't touch any of the async/await stuff unless you know what you're doing thanks
 	return new Promise(await function(resolve, reject) {
 		rssUrl = uri + '/feeds/posts/default?rss'; //rss url incase we need it for later meddling
@@ -107,7 +110,7 @@ async function twitUpload(T, options){
 	return new Promise(function(resolve, reject){
 		T.post('media/upload', options, function(err, data, response){
 			if (err) reject(err);
-			resolve(data);
+			resolve(data.media_id_string);
 		});
 	});
 }
@@ -123,7 +126,7 @@ async function twitCreate(T, options){
 
 async function twitPost(T, options){
 	return new Promise (function(resolve, reject){
-		T.post('status/update', options, function(err, data, response){
+		T.post('statuses/update', options, function(err, data, response){
 			if (err) reject(err);
 			resolve(data);
 		});
@@ -185,8 +188,8 @@ async function tweet (post, cluster){
 			b64 = fs.readFileSync('./' + file, {encoding: 'base64'});
 		}
 		
-		let mediaId = await twitUpload(T, {media_data: b64});
-		await twitCreate(T, {media_id: mediaId});
+		let mediaIdStr = await twitUpload(T, {media_data: b64});
+		await twitCreate(T, {media_id: mediaIdStr});
 		let params = {status: newTweet, media_ids: [mediaIdStr]};
 		
 		for (i = 0; i < 3; i++){
@@ -211,41 +214,14 @@ async function tweet (post, cluster){
 				console.log(file + ' was deleted');
 			});
 		}
-		
-		/*twitPost('media/upload', {media_data: b64}).then(data => {
-			let mediaIdStr = data.media_id_string;
-			let meta_params = {media_id: mediaIdStr};
-			twitPost('media/metadata/create', meta_params).then((data) => {
-				let params = {status: newTweet, media_ids: [mediaIdStr]};
-				for (i = 0; i < 3; i++){
-					console.log("Loop #" + i + " on thingy: " + newTweet);
-					twitPost('statuses/update', params).then((data) => {
-						if (file){
-							fs.unlink('./' + file, (err) => {
-								if (err) throw err;
-								console.log(file + ' was deleted');
-							});
-						}
-						i = 3;
-						console.log(i);
-					}).catch((err) => {
-						if (err.code == 187){
-							console.log(err);
-							console.log(i);
-							i = 3;
-						}
-						else if (i >= 2){
-							console.log(err);
-							i = 3;
-						}
-					});
-				}
-			})
-			}).catch(err => console.log(err))*/
 	}
 }
 
 async function processBlogs(mainSheet){
+	if (processing){
+		return console.log("Server is still processing");
+	}
+	processing = true;
 	var blogArray = await grabBlogs(mainSheet); //wait on all the information calls before running checks. 
 	var blogOps = []; //array of operations for the bulkWrite at the end
 	var postOps = [];
@@ -357,22 +333,16 @@ async function processBlogs(mainSheet){
 				console.log("New Errors: " + res.modifiedCount);
 			});
 		}
+		processing = false;
 	}
 	else{
 		console.log("No Updates This Time.");
+		processing = false; 
 	}
-	/*Sheet.findById(sheetId, function(err, sheet){ //tentative structuring, need to account for multiple sheets
-		Cluster.updateOne({'error.id' : sheet._id, _id : sheet.cluster},{'$set': {
-			'error.$.error': sheetError
-		}}, function(err){
-			console.log(err);
-			console.log('what is even going on');
-		});
-	});*/
 }
 
 function addBlogs(sheet){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
 		blogArray = [];
 		let values = response.data.values;
@@ -436,24 +406,11 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 				processBlogs(sheet);
 			}
 		});
-		/*Cluster.findById(sheet.cluster, function(err, cluster){ //imperfect, sheets are never removed currently. No functionality to report changes/check errors from cluster level yet
-			if (!cluster) return next (new Error('Could not load document.'));
-			else {
-				let title = sheet.title ? sheet.title : sheet.name;	
-				cluster.error.push({ "name" : title, "id" : sheet._id, "error" : sheetError });
-				cluster.save().then(cluster => {
-					console.log('Sheet pushed to Cluster');
-				}).catch(err => {
-					console.log('Could not push Sheet to Cluster');
-				});
-			}
-		});*/
-		
 	});
 }
 
 async function updateBlogs(sheet){
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C2:C10' /*sheet.range*/ + '?key=' + apiKey;
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
 	blogOps = [];
 	await axios.get(uri).then((res) => {
 		let values = res.data.values;
@@ -533,9 +490,11 @@ async function updateBlogs(sheet){
 	//Start reprocessing the sheet here to check for new errors and blog posts.
 }
 
-sheetRoutes.route('/test').get(async function (req, res){
-	let item = await rssParse('http://thisisnotarealblogthatiuse.blogspot.com');
-	res.json(item.content)
+sheetRoutes.route('/scheduleTrigger').get(function (req, res){
+	if ((req.header.authorization == config.scheduleKey) && processing){
+		processBlogs();
+	}
+	res.end();
 });
 
 sheetRoutes.route('/add').post(async function (req, res) { //Adds sheets to the database w/ url and range etc. Refer to the ./src/models folder for database structure info
