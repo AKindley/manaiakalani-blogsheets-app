@@ -11,10 +11,17 @@
 				</option>
 			</select></label><br>
 			<label for="checkbox">Automatically check the blogs on this sheet?: {{ automated }}</label>
-			<input :disabled="!editing" type="checkbox" id="checkbox" v-model="automated">
+			<input :disabled="!editing" type="checkbox" id="checkbox" v-model="automated"><br>
+			<label for="processBox">Tweet all latest blog posts when this sheet is added: </label>
+			<input :disabled="!editing" type="checkbox" id="processBox" v-model="tweetOnAdd">
 			<button v-if="editing" style="float:right;margin-right:40px;margin-top:20px" @click="addSheet">save sheet to cluster</button>
 		</div>
-
+		<div v-if="errorList.length > 0" style="margin-top:40px;margin-left:40px;margin-right:40px;border:3px solid red;border-radius:4px;background-color:#ffb2ae;color:black">
+			<div style="padding:5px;border-bottom:3px solid red;background-color:#ff6961;font-size:larger"><b>Errors:</b></div>
+			<ul style="padding-inline-start:0px;list-style-type:none">
+				<b><li v-for="error in errorList" :key="`err-${error.row}`"><a target="_blank":href="cellLink + error.row">Row {{error.row}}: {{error.error}}</a></li></b>
+			</ul>
+		</div>
 		<div style="margin-top:40px;margin-left:40px;margin-right:40px">
 			<button @click="deleteSheet">DELETE SHEET</button>
 			<button @click="postProcess">Process This Sheet</button>
@@ -59,6 +66,7 @@
 			sheetUrl: '',
 			curSheetId: '',
 			sheetsList: [],
+			sheetIdList: [],
 			selectedSheet: '',
 			rows: [],
 			rowInd: ['1','2','3','4','5','6','7','8','9','10'],
@@ -67,7 +75,9 @@
 			column: '',
 			rowNum: '',
 			sheetDATA: [],
-			automated: true
+			automated: true,
+			errorList: [],
+			tweetOnAdd: true
 			
 			}
 		},
@@ -78,10 +88,15 @@
 				this.curSheetId = this.sheetUrl.match(exp)[1];
 				let uri = '/sheets/getSpreadsheet/' + this.curSheetId;
 				this.axios.get(uri).then((response) => {
+					if (!response.data){
+						this.$router.push('/');
+						return;
+					}
 					let sheets = response.data.sheets;
 					let sheet;
 					for (sheet in sheets){
-						this.sheetsList.push(sheets[sheet].properties.title)
+						this.sheetsList.push(sheets[sheet].properties.title);
+						this.sheetIdList.push(sheets[sheet].properties.sheetId);
 					}
 					this.selectedSheet = this.sheetsList[0];
 				});
@@ -113,22 +128,36 @@
 			addSheet(event){
 				event.preventDefault();
 				if (this.selectedSheet && this.cellRange && this.curSheetId && this.ClusterId){
+					let index = this.sheetsList.indexOf(this.selectedSheet);
+					let id = this.sheetIdList[index];
 					var newSheet = {
 						name: this.selectedSheet,
 						title: this.sheetName,
 						range: this.cellRange,
 						spreadsheetId: this.curSheetId,
+						sheetId: id,
 						cluster: this.ClusterId,
-						automation: this.automated
+						automation: this.automated,
+						tweet: this.tweetOnAdd
 					};
 					if (this.SheetId === 'add'){
 						let uri = '/sheets/add';
-						this.axios.post(uri, newSheet);
+						this.axios.post(uri, newSheet).then((response) => {
+							if (!response.data){
+								this.$router.push('/');
+								return;
+							}
+						});
 						this.$router.go(-1);
 					}
 					else{
 						let uri = '/sheets/update/' + this.SheetId;
-						this.axios.post(uri, newSheet);
+						this.axios.post(uri, newSheet).then((response) => {
+							if (!response.data){
+								this.$router.push('/');
+								return;
+							}
+						});
 					}
 				}
 				else{
@@ -138,16 +167,22 @@
 			loadSheet () {
 				let uri = '/sheets/get/' + this.SheetId;
 				this.axios.get(uri).then((response) => {
+					if (!response.data){
+						this.$router.push('/');
+						return;
+					}
 					let temp = response.data;
 					this.curSheetId = temp.spreadsheetId;
 					this.cellRange = temp.range;
 					this.selectedSheet = temp.name;
 					this.sheetsList[0] = temp.name;
+					this.sheetIdList[0] = temp.sheetId;
 					this.sheetName = temp.title;
 					this.column = this.cellRange[0];
 					this.rowNum = parseInt(this.cellRange[1]);
 					this.sheetUrl = 'https://docs.google.com/spreadsheets/d/' + temp.spreadsheetId;
 					this.automated = temp.automation;
+					this.errorList = temp.error;
 				});
 			},
 			editSheet () {
@@ -157,6 +192,10 @@
 				event.preventDefault();
 				self = this;
 				this.axios.get('/sheets/delete/' + this.SheetId).then((response) => {
+					if (!response.data){
+						this.$router.push('/');
+						return;
+					}
 					console.log(response);
 					self.$router.go(-1);
 				});
@@ -164,22 +203,39 @@
 			postProcess (event){
 				event.preventDefault();
 				this.axios.post('/sheets/process/' + this.SheetId).then((res)=>{
+					if (!res.data){
+						this.$router.push('/');
+						return;
+					}
 					console.log(res);
 				});
 			}
 		},
-		
+		computed: {
+			cellLink: function(){
+				let link = this.sheetUrl + '/edit#gid=' + this.sheetIdList[0] + '&range=' + this.cellRange.charAt(0);
+				return link;
+			}
+		},
 		watch: {
 			selectedSheet: function() {
 				if (this.SheetId !== 'add'){ 
 					let uri = '/sheets/loadSheet/' + this.SheetId;
 					this.axios.get(uri).then((response) => {
+						if (!response.data){
+							this.$router.push('/');
+							return;
+						}
 						this.rows = response.data.values;
 					});
 				}
 				else{
 					let uri = '/sheets/getSheet/' + this.curSheetId + '/' + this.selectedSheet;
 					this.axios.get(uri).then((response) => {
+						if (!response.data){
+							this.$router.push('/');
+							return;
+						}
 						this.rows = response.data.values;
 					});
 				}

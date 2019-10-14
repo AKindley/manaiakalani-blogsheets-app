@@ -1,20 +1,50 @@
-
+var fs = require('fs'), request = require('request');
+var HTMLParser = require('node-html-parser');
+//////////////////////////////////////////////
 var secret = require('../secret.json');
+var config = require('../config.json');
 var apiKey = secret.API_KEY;
 var consumerKey = secret.TWITTER_API_KEY;
 var consumerSecret = secret.TWITTER_API_KEY_SECRET;
+//////////////////////////////////////////////
+var crypto = require('crypto');
 var express = require('express');
 var app = express();
 var sheetRoutes = express.Router();
 var Sheet = require('../models/sheetStructure');
 var Blog = require('../models/blogStructure');
 var Post = require('../models/postStructure');
+var Cluster = require('../models/clusterStructure');
+var Session = require('../models/sessionStructure');
 let Parser = require('rss-parser');
 var parser = new Parser();
 var moment = require('moment');
 var Twit = require('twit');
+var util = require('util');
+var processing = false;
 const axios = require('axios');
 
+async function authCheck(req, res){
+	if (!req.headers.cookie){
+		res.send(false);
+		return false;
+	}
+	let values = req.headers.cookie.split("=s%3A");
+		let cookie = values[1];
+		let sessionID = cookie.split(".")[0];
+		return await Session.findOne({sessionID: sessionID}, function(err, session){
+			if (err){console.log(err)}
+			else if (session){
+				session.expireAt = Date.now();
+				session.save();
+				return true;
+			}
+			else {
+				res.send(false);
+				return false;
+			}
+		});
+}
 
 async function rssParse(uri){ //This thing returns a promise, don't touch any of the async/await stuff unless you know what you're doing thanks
 	return new Promise(await function(resolve, reject) {
@@ -25,13 +55,16 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 				reject(Error(error));
 			}
 			else{
-				//itemArray.push(feed.items[0]); // Test junk
+				if(!feed.items[0]){
+					reject(false);
+				}
 				resolve(feed.items[0]); //We did it, yay
 			}
 		});
 	});
 }
 async function grabBlogs(sheet){ //Grabs all the necessary information to process blogs and check for new posts. 
+	console.log("GRABBING BLOGS STARTED");
 	return new Promise(async function(resolve, reject){
 		blogArray = []; //declare the array of information
 		var query = {}; //query filter object for the query
@@ -43,7 +76,7 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 			query.active = true;
 			query.sheet = sheet._id;
 		}
-		for await (const blog of Blog.find(query).populate('cluster')){ //iterate through the query, mongoose creates a cursor()
+		for await (const blog of Blog.find(query).populate('cluster').populate('sheet')){ //iterate through the query, mongoose creates a cursor()
 			let blogInfo = {}; //object that contains the information for each blog
 			blogInfo.blog = blog; //blog info from the mongo db
 			if (blog.post != undefined){ //if there's a post already referenced by the blog model
@@ -54,53 +87,199 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 			
 			blogArray.push(blogInfo); //Pushes the info object into the array
 		}
-		console.log(blogArray)
+		console.log("FINISHED GRABBING BLOGS");
 		resolve(blogArray); //Return the array of objects
 	});
 }
+async function download(uri, filename){ //download function for images
+	return new Promise(function(resolve, reject){
+		if (uri.substring(0,35).includes('base64,')){
+			let b64 = uri.split('base64,')[1];
+			resolve(b64);
+		}
+		else{
+			request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
+				console.log('content-type:', res.headers['content-type']);
+				console.log('content-length:', res.headers['content-length']);
+				if (err) reject(err);
+				
+				request(uri).pipe(fs.createWriteStream(filename)).on('close', function(){resolve();}); //writestream for file saving
+			});
+		}
+	});
+}
+async function twitUpload(T, options){
+	return new Promise(function(resolve, reject){
+		T.post('media/upload', options, function(err, data, response){
+			if (err) reject(err);
+			resolve(data.media_id_string);
+		});
+	});
+}
 
-function tweet(post, cluster){
-	let T  = new Twit({
+async function twitCreate(T, options){
+	return new Promise(function(resolve, reject){
+		T.post('media/metadata/create', options, function(err, data, response){
+			if (err) reject(err);
+			resolve(data);
+		});
+	});
+}
+
+async function twitPost(T, options){
+	return new Promise (function(resolve, reject){
+		T.post('statuses/update', options, function(err, data, response){
+			if (err) reject(err);
+			resolve(data);
+		});
+	});
+}
+async function tweet (post, cluster){
+	var T = new Twit({
 		consumer_key: consumerKey,
 		consumer_secret: consumerSecret,
 		access_token: cluster.access_token,
 		access_token_secret: cluster.access_token_secret
 	});
-	var newTweet = post.title + ' ' + post.url + ' ' + post.content;
-	var xmlString = response.data;
-	var doc = new DOMParser().parseFromString(xmlString, "text/html");
-	let firstImg = doc.getElementsByTagName("img")[0];
-	if (firstImg == undefined){
-		//Do non media tweet stuff here
+		
+	let newTweet = post.title + ' ' + post.url + ' ' + post.snippet;
+	if (newTweet.length >= 280){
+		newTweet = newTweet.substring(0, 277) + '...';
 	}
+	let xmlString = post.content;
+	let doc = HTMLParser.parse(xmlString);
+	let firstImg = doc.querySelector("img");
+	let firstIframe = doc.querySelector("iframe");
+	
+	if (!firstImg && firstIframe){
+		let iframeLink = firstIframe.attributes.src;
+		if (newTweet.length + 25 >= 280){
+			newTweet = newTweet.substring(0, 252) + '... ' + iframeLink;
+		}
+		else {
+			newTweet = newTweet + ' ' + iframeLink;
+		}
+	}
+	
+	if (!firstImg){
+		for (i = 0; i < 3; i++){
+			await twitPost(T, {status: newTweet}).then((data) => {
+				i = 3;
+			}).catch(err => {
+				if (err.code == 187){
+					console.log(err);
+					i = 3;
+				}
+				else if (i >= 2){
+					console.log(err);
+					i = 3;
+				}
+			});
+			console.log(i);
+		}
+	}	
 	else{
-		//Do media upload + tweet stuff here
+		let file = crypto.randomBytes(10).toString('hex') + '.png';
+		let imgData = await download(firstImg.attributes.src, file);
+		let b64;
+		if (imgData) {
+			b64 = imgData;
+			file = null;
+		}
+		else {
+			b64 = fs.readFileSync('./' + file, {encoding: 'base64'});
+		}
+		
+		let mediaIdStr = await twitUpload(T, {media_data: b64});
+		await twitCreate(T, {media_id: mediaIdStr});
+		let params = {status: newTweet, media_ids: [mediaIdStr]};
+		
+		for (i = 0; i < 3; i++){
+			console.log('Loop #' + (i + 1) + " on thing: " + newTweet);
+			await twitPost(T, params).then((data) => {
+				i = 3;
+			}).catch((err) => {
+				if (err.code == 187){
+					console.log(err);
+					i = 3;
+				}
+				else if (i >= 2){
+					console.log(err);
+					i = 3;
+				}
+			});
+		}
+		
+		if (file){
+			fs.unlink('./' + file, (err) => {
+				if (err) throw err;
+				console.log(file + ' was deleted');
+			});
+		}
 	}
-	let newTweet = 'This is a tweet with the title: ' + post.title
-	T.post('statuses/update', {status: newTweet}, function(err, data, response){
-		console.log(data);
-	});
 }
 
-async function processBlogs(sheet){
-	var blogArray = await grabBlogs(sheet); //wait on all the information calls before running checks. 
-	console.log(blogArray);
+async function processBlogs(mainSheet, tweetBlogs){
+	if (processing){
+		return console.log("Server is still processing");
+	}
+	processing = true;
+	tweetBlogs = false;
+	var blogArray = await grabBlogs(mainSheet); //wait on all the information calls before running checks. 
 	var blogOps = []; //array of operations for the bulkWrite at the end
 	var postOps = [];
+	var sheetOps = [];
+	var caught;
+	var sheet;
+	let countMe = 1;
 	for (const blogInfo of blogArray){ //iterate over the blog info array
+		caught = false;
+		console.log("Processing Blog #" + countMe);
+		countMe++;
 		let blog = blogInfo.blog;
-		let latestPost = await rssParse(blog.baseUrl); //new? post from the rss feed of the blog
+		sheet = blog.sheet;
+		
+		if (!blog.active){
+			continue;
+		}
+		
+		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
+			//If there's an issue with parsing the url, we push error updates
+			blogOps.push({ //Set blog to inactive so it's not being checked
+				updateOne: {
+					filter: {_id: blog._id},
+					update: {active: false}
+				}
+			});
+			let errorType = "Bad Url";
+			if(!rej){
+				errorType = "Empty Blog";
+			}
+			sheetOps.push({ //updates the list of errors on the sheet
+				updateOne: { 
+					filter: {_id: sheet._id},
+					update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
+				}
+			});
+			
+			caught = true;
+			
+		}); //new? post from the rss feed of the blog
+		if (caught){continue;}
 		if (blog.post == undefined || blog.post == null){ //if no blog post is present, select latest post
 			let post = new Post({
 				url: latestPost.link,
 				title: latestPost.title,
 				date: latestPost.isoDate,
-				content: latestPost.content
+				content: latestPost.content,
+				snippet: latestPost.contentSnippet
 			});
 			post.blog = blog; //setting refs between the post and the blog
 			blog.post = post;
 			
-			tweet(post, blog.cluster);
+			if (tweetBlogs){
+				tweet(post, blog.cluster);
+			}
 			
 			postOps.push({ //push insert operation to array
 				insertOne: {
@@ -109,8 +288,8 @@ async function processBlogs(sheet){
 			});
 			blogOps.push({ //push update operation to array
 				updateOne: {
-				filter: {_id: blog._id},
-				update: {post: post}
+					filter: {_id: blog._id},
+					update: {post: post}
 				}
 			});			
 		}
@@ -123,7 +302,8 @@ async function processBlogs(sheet){
 					url: latestPost.link,
 					title: latestPost.title,
 					date: latestPost.isoDate,
-					content: latestPost.content
+					content: latestPost.content,
+					snippet: latestPost.contentSnippet
 				});
 				post.blog = blog;
 				blog.post = post;
@@ -148,29 +328,47 @@ async function processBlogs(sheet){
 			
 		}
 	}
-	if (blogOps.length != 0 && postOps.length != 0){ //ignores this step if there's nothing to update/insert
-		Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
-			console.log("Updated Blogs: " + res.modifiedCount);
-		});
-		Post.bulkWrite(postOps).then(res => {
-			console.log("Added Posts: " + res.insertedCount);
-		});
+	if (blogOps.length || postOps.length || sheetOps.length){
+		if (blogOps.length > 0){ //ignores this step if there's nothing to update/insert
+			Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
+				console.log("Updated Blogs: " + res.modifiedCount);
+			});
+		}
+		if (postOps.length > 0){
+			Post.bulkWrite(postOps).then(res => {
+				console.log("Added Posts: " + res.insertedCount);
+			});
+		}
+		if (sheetOps.length > 0){
+			Sheet.bulkWrite(sheetOps).then(res => {
+				console.log("New Errors: " + res.modifiedCount);
+			});
+		}
+		processing = false;
 	}
 	else{
-		console.log("No Updates This Time.")
+		console.log("No Updates This Time.");
+		processing = false; 
 	}
 }
 
-
-function addBlogs(sheet){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!C1:C10' /*sheet.range*/ + '?key=' + apiKey;
+function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
 		blogArray = [];
 		let values = response.data.values;
+		let startRow = parseInt(sheet.range.charAt(1));
+		var sheetError = false
 		for (index = 0; index < values.length; index++){
 			let uri = values[index][0];
+			let rowNum = startRow + index;
+			if (!uri){
+				sheet.error.push({"row": rowNum, "error": "Missing Url", "url": "None"});
+				sheetError = true;
+				continue;
+			}
 			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
-				uri = 'http://' + uri;
+				uri = 'https://' + uri;
 			}
 			var blog = new Blog({
 				baseUrl: uri,
@@ -178,7 +376,8 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 				active: true,
 				cluster: sheet.cluster,
 				sheet: sheet._id,
-				automation: sheet.automation
+				automation: sheet.automation,
+				row: rowNum
 			});
 			
 			blogArray.push({
@@ -188,28 +387,150 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 			});
 		}
 		console.log(blogArray);
-		Blog.bulkWrite(blogArray);
 		
+		
+		Blog.bulkWrite(blogArray, {ordered: false}, function (err, res) {
+			if (err){
+				sheetError = true;
+				console.log("Err array" + err.writeErrors[0]);
+				console.log("Num inserted: " + err.result.result.nInserted);
+				let errorArray = err.writeErrors;
+				for (index = 0; index < errorArray.length; index++){
+					let rowNum = errorArray[index].err.op.row;
+					let url = errorArray[index].err.op.baseUrl;
+					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
+				}
+				/*sheet.save().then(res => {
+					console.log("Errors pushed to sheet");
+				});*/
+			}
+			else {
+				console.log("No issues adding " + res.insertedCount + " blogs");
+			}
+			if (sheet.error.length > 0){
+				sheet.save().then(res =>{
+					console.log("Errors pushed to sheet");
+					processBlogs(sheet, tweetBlogs);
+				});
+			}
+			else{
+				processBlogs(sheet, tweetBlogs);
+			}
+		});
 	});
 }
 
-sheetRoutes.route('/test').get(async function (req, res){
-	let item = await rssParse('http://thisisnotarealblogthatiuse.blogspot.com');
-	res.json(item.content)
+async function updateBlogs(sheet){
+	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
+	blogOps = [];
+	await axios.get(uri).then((res) => {
+		let values = res.data.values;
+		let uris = [];
+		let startRow = parseInt(sheet.range.charAt(1));
+		
+		for (index = 0; index < values.length; index++){
+			console.log(index);
+			let uri = values[index][0];
+			let rowNum = startRow + index;
+			if (!uri){
+				sheet.error.push({"row": rowNum, "error": "Missing Url", "url": "None"});
+				continue;
+			}
+			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
+				uri = 'https://' + uri;
+			}
+			uris.push(uri);
+			
+			
+			blogOps.push({ //"Update" if exists, insert if it doesn't
+				updateOne: {
+					filter: {baseUrl: uri, sheet: sheet},
+					update: {
+						baseUrl: uri,
+						active: true,
+						cluster: sheet.cluster,
+						sheet: sheet._id,
+						automation: sheet.automation,
+						row: rowNum
+					},
+					upsert: true, //important
+					setDefaultsOnInsert: true
+				}
+			});
+			
+		}
+		blogOps.push({ //Set all urls no longer present in the sheet to inactive so that they're not checked for posts.
+			updateMany: {
+				filter: {baseUrl: {$nin: uris}, sheet: sheet},
+				update: {active: false}
+			}
+		});
+		
+		Blog.bulkWrite(blogOps, {ordered: false}, function (err, res){ //bulkWrite all operations
+			if (err){ 
+				
+				console.log("Err array" + err.writeErrors); //Report errors present back to sheet --> cluster
+				console.log("Num inserted: " + err.result.result.nInserted);
+				let errorArray = err.writeErrors;
+				for (index = 0; index < errorArray.length; index++){ //error array
+					let rowNum = errorArray[index].err.op.u.$set.row; //Keep an eye on this in case there's a better way to access this information.
+					let url = errorArray[index].err.op.u.$set.baseUrl; //Seems to be different error formats for inserts/upserts
+					console.log("URL AND ROW: " + rowNum + " "+ url); //debug
+					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url }); //Push to error array in sheet
+				}
+				/*sheet.save().then(res => {
+					console.log("Errors pushed to sheet");
+				});*/
+			}
+			else { //if no errors occur
+				console.log("No issues adding " + res.insertedCount + " blogs");
+				console.log("No issues modifying " + res.modifiedCount + " blogs");
+			}
+			if (sheet.error.length > 0){
+				sheet.save().then(res => {
+					console.log('Errors pushed to sheet');
+					processBlogs(sheet);
+				});
+			}
+			else{
+				processBlogs(sheet);
+			}
+		});
+	});
+	
+	//Start reprocessing the sheet here to check for new errors and blog posts.
+}
+
+sheetRoutes.route('/scheduleTrigger').get(function (req, res){
+	if ((req.header.authorization == config.scheduleKey) && processing){
+		processBlogs();
+	}
+	res.end();
 });
 
-sheetRoutes.route('/add').post(function (req, res) { //Adds sheets to the database w/ url and range etc. Refer to the ./src/models folder for database structure info
+sheetRoutes.route('/add').post(async function (req, res) { //Adds sheets to the database w/ url and range etc. Refer to the ./src/models folder for database structure info
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
+	let tweetOnAdd = req.body.tweet;
+	delete req.body.tweet;
+	
 	var entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.
 		entry.save().then(
 			entry => {
-				addBlogs(entry);
+				addBlogs(entry, tweetOnAdd);
 				res.status(200).json({'entry': 'Entry added successfully'});
 			}).catch(err => {
 				res.status(400).send('Unable to save to database');
 			});
 });
 
-sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
+sheetRoutes.route('/process/:id').post(async function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	let id = req.params.id; //Need to implement per cluster. 
 	if (id == 'complete'){ //Processes the entire collection of blogs, except for inactive or manual update blogs. 
 		//processBlogs();
@@ -229,7 +550,11 @@ sheetRoutes.route('/process/:id').post(function (req, res){ //Process call for r
 	res.status(200).send("Schroedinger's Database"); //Chrome was complaining about not getting a response
 });
 
-sheetRoutes.route('/:id').get(function (req, res) { //Potentially smart to better name this call. 
+sheetRoutes.route('/:id').get(async function (req, res) { //Potentially smart to better name this call.
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	let id = req.params.id;
 	Sheet.find({ cluster: id },function (err, sheet){//Requests sheets from the db by their cluster.
 		if(err){
@@ -240,7 +565,11 @@ sheetRoutes.route('/:id').get(function (req, res) { //Potentially smart to bette
 		}
 	});
 });
-sheetRoutes.route('/getSpreadsheet/:id').get(function (req, res){ //Another google sheets request thing. This is used when getting all the sheet values rather than just a single range. Still don't know if we need both. Probably not. 
+sheetRoutes.route('/getSpreadsheet/:id').get(async function (req, res){ //Another google sheets request thing. This is used when getting all the sheet values rather than just a single range. Still don't know if we need both. Probably not. 
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	let spreadsheetId = req.params.id;
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
@@ -250,7 +579,11 @@ sheetRoutes.route('/getSpreadsheet/:id').get(function (req, res){ //Another goog
 	});
 });
 
-sheetRoutes.route('/getSheet/:id/:name').get(function (req, res){ //Honestly I don't know why there's three of them. Review where these are used. 
+sheetRoutes.route('/getSheet/:id/:name').get(async function (req, res){ //Honestly I don't know why there's three of them. Review where these are used. 
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	let id = req.params.id;
 	let name = req.params.name;
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + name + '!A1:J10?key=' + apiKey;
@@ -260,7 +593,11 @@ sheetRoutes.route('/getSheet/:id/:name').get(function (req, res){ //Honestly I d
 		console.log(error);
 	});
 });
-sheetRoutes.route('/loadSheet/:id').get(function (req, res){
+sheetRoutes.route('/loadSheet/:id').get(async function (req, res){
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	Sheet.findById(req.params.id, function(err, sheet) { //We don't store the sheet values in the db, so we request them from google when editing a sheet. 
 		if(err){
 			console.log(err);
@@ -276,7 +613,11 @@ sheetRoutes.route('/loadSheet/:id').get(function (req, res){
 	});
 });
 
-sheetRoutes.route('/get/:id').get(function (req, res) {
+sheetRoutes.route('/get/:id').get(async function (req, res) {
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	Sheet.findById(req.params.id, function(err, sheet) { //gets a sheet from the db by the sheet id
 		if(err){
 			console.log(err);
@@ -287,7 +628,11 @@ sheetRoutes.route('/get/:id').get(function (req, res) {
 	});
 });
 
-sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in the database with new values.
+sheetRoutes.route('/update/:id').post(async function (req, res) { //Updates a sheet in the database with new values.
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	Sheet.findById(req.params.id, async function(err, sheet) {
 		if (!sheet) return next (new Error('Could not load Document'));
 		else {
@@ -296,11 +641,14 @@ sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in
 			sheet.range = req.body.range;
 			sheet.cluster = req.body.cluster;
 			sheet.spreadsheetId = req.body.spreadsheetId;
+			sheet.sheetId = req.body.sheetId;
 			sheet.automation = req.body.automation;
+			sheet.error = []; //reset errors on sheet update - will be repopulated if errors still exist
 			
-			await Blog.updateMany({active: true, sheet: sheet._id}, {automation: sheet.automation});
+			//await Blog.updateMany({active: true, sheet: sheet._id}, {automation: sheet.automation});
 			sheet.save().then(sheet => {
 				res.json('Update complete');
+				updateBlogs(sheet); //Update call for error checking and blog updates
 			})
 			.catch(err => {
 				res.status(400).send('Unable to update the database');
@@ -309,7 +657,11 @@ sheetRoutes.route('/update/:id').post(function (req, res) { //Updates a sheet in
 	});
 });
 
-sheetRoutes.route('/delete/:id').get(function (req, res) { //Deletes a sheet from the db 
+sheetRoutes.route('/delete/:id').get(async function (req, res) { //Deletes a sheet from the db 
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
 	Sheet.findByIdAndRemove({_id: req.params.id}, async function(err, sheet){
 		////////////////////////////////////////////
 		/////NOT INTENDED FOR FINAL ITERATION///////

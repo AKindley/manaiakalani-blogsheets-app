@@ -1,4 +1,5 @@
-
+var secret = require('./secret.json');
+var config = require('./config.json');
 const express = require('express'),
 	session = require ('express-session'),
 	path = require('path'),
@@ -10,6 +11,7 @@ const express = require('express'),
 	authRoutes = require('./expressRoutes/authRoutes');
 	mongoose.Promise = global.Promise;
 	passport = require('passport');
+	const clientOrigin = config.clientUrl + ':' + config.clientPort;
 	mongoose.connect('mongodb://localhost/test5').then(
 		() => {console.log('Database is connected')},
 		err => {console.log('Can not connect to the database' + err)}
@@ -19,13 +21,14 @@ const express = require('express'),
 	mongoose.set('useFindAndModify', false);
 	app.use(express.static('public'));
 	app.use(bodyParser.json());
-	app.use(cors());
-	app.use(passport.initialize())
-	app.use(session({secret: 'keyboard cat', name:'tim', cookie:{secure: false}}));
-	app.use('/entries', clusterRoutes);
-	app.use('/sheets', sheetRoutes);
+	app.use(cors({credentials: true, origin: clientOrigin}));
+	app.use(session({secret: secret.SESSION_SECRET, name:'Manaiakalani', cookie:{secure: false}})); //secure should be true
+	app.use(passport.initialize());
+	app.use(passport.session());
+	app.use('/api/entries', clusterRoutes);
+	app.use('/api/sheets', sheetRoutes);
 	app.use(authRoutes);
-	const port = process.env.PORT || 4000;
+	const port = config.serverPort || 4000;
 	
 	const server = app.listen(port, function(){
 		console.log('Listening on port' + port);
