@@ -1,16 +1,18 @@
-var express = require('express');
-var config = require('../config.json');
-var app = express();
-var secret = require('../secret.json');
-var server = config.serverUrl + ':' + config.serverPort;
-var client = config.clientUrl + ':' + config.clientPort;
-var TWITTER_CONSUMER_KEY = secret.TWITTER_API_KEY;
-var TWITTER_CONSUMER_SECRET = secret.TWITTER_API_KEY_SECRET;
-var googleClient = secret.GOOGLE_CLIENT_ID;
-var googleSecret = secret.GOOGLE_CLIENT_SECRET;
-var passport = require('passport'), TwitterStrategy = require('passport-twitter').Strategy, GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
-var Cluster = require('../models/clusterStructure');
-var Session = require('../models/sessionStructure');
+const express = require('express');
+const config = require('../config.json');
+const app = express();
+const secret = require('../secret.json');
+const server = config.serverUrl + ':' + config.serverPort;
+const client = config.clientUrl + ':' + config.clientPort;
+const TWITTER_CONSUMER_KEY = secret.TWITTER_API_KEY;
+const TWITTER_CONSUMER_SECRET = secret.TWITTER_API_KEY_SECRET;
+const googleClient = secret.GOOGLE_CLIENT_ID;
+const googleSecret = secret.GOOGLE_CLIENT_SECRET;
+const authDomains = config.authDomains;
+const authWhiteLiast = config.authWhitelist;
+const passport = require('passport'), TwitterStrategy = require('passport-twitter').Strategy, GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
+const Cluster = require('../models/clusterStructure');
+const Session = require('../models/sessionStructure');
 const axios = require('axios');
 	
 passport.serializeUser((user, done) => done(null, user)); //serializeUser and deserializeUser are important for avoiding passport errors. 
@@ -23,10 +25,10 @@ passport.use(new GoogleStrategy({
 	},
 	function(accessToken, refreshToken, user, done){
 		let domain = user.emails[0].value;
-		if (domain.match(/@(.+)$/g) != 'manaiakalani.org' && domain != 'fotterly@gmail.com'){
-			return done(null, null, 'Invalid Domain');
+		if ( checkAuth(domain) ){
+			return done(null, user);
 		}
-		return done(null, user);
+		return done(null, null, 'Invalid Domain');
 	}
 ));
 
@@ -55,53 +57,71 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 	}
 ));
 
-	app.get('/api/auth/twitter/init/:cluster', function(req, res, next){ //initial auth call, where passport begins the auth 1.0a process
-		req.session.cluster = req.params.cluster; //saves the cluster id to the session
-		passport.authenticate('twitter',{userAuthorizationURL: 'https://api.twitter.com/oauth/authenticate?force_login=true'})(req,res,next); //begins the auth chain
-	});
+app.get('/api/auth/twitter/init/:cluster', function(req, res, next){ //initial auth call, where passport begins the auth 1.0a process
+	req.session.cluster = req.params.cluster; //saves the cluster id to the session
+	passport.authenticate('twitter',{userAuthorizationURL: 'https://api.twitter.com/oauth/authenticate?force_login=true'})(req,res,next); //begins the auth chain
+});
 
-	app.get('/api/auth/twitter/callback', passport.authenticate('twitter', //called when twitter responds
-		{successRedirect: client + '/api/auth/twitter/callback',  //redirect for a successful auth chain
-		failureRedirect: client + '/404'} //redirect for a failed auth chain
-	));
+app.get('/api/auth/twitter/callback', passport.authenticate('twitter', //called when twitter responds
+	{successRedirect: client + '/api/auth/twitter/callback',  //redirect for a successful auth chain
+	failureRedirect: client + '/404'} //redirect for a failed auth chain
+));
 	
-	app.get('/api/auth/google', passport.authenticate('google', 
-		{ scope: ['profile', 'email'], hostedDomain:['manaiakalani.org']}
-	));
+app.get('/api/auth/google', passport.authenticate('google', 
+	{ scope: ['profile', 'email'], hostedDomain:['manaiakalani.org']}
+));
 	
-	app.get('/api/auth/google/callback', 
-		passport.authenticate('google', { failureRedirect: client + '/'}),
-		function(req, res) {
-			var session = new Session({
-				sessionID: req.sessionID
-			});
-			session.save().then(
-				entry => {
-					res.redirect(client + '/Lobby');
-				}).catch(err => {
-					res.redirect(client + '/');
-			});
-	});
-	
-	app.get('/api/auth/google/session', async function(req, res)	{
-		if (!req.headers.cookie){
-			res.send(false);
-			return;
-		}
-		let values = req.headers.cookie.split("=s%3A");
-		let cookie = values[1];
-		let sessionID = cookie.split(".")[0];
-		await Session.findOne({sessionID: sessionID}, function(err, session){
-			if (err){console.log(err)}
-			else if (session){
-				session.expireAt = Date.now();
-				session.save();
-				res.send(true);
-			}
-			else {
-				res.send(false);
-			}
+app.get('/api/auth/google/callback', 
+	passport.authenticate('google', { failureRedirect: client + '/'}),
+	function(req, res) {
+		var session = new Session({
+			sessionID: req.sessionID
 		});
+		session.save().then(
+			entry => {
+				res.redirect(client + '/Lobby');
+			}).catch(err => {
+				res.redirect(client + '/');
+		});
+});
+	
+app.get('/api/auth/google/session', async function(req, res)	{
+	if (!req.headers.cookie){
+		res.send(false);
+		return;
+	}
+	let values = req.headers.cookie.split("=s%3A");
+	let cookie = values[1];
+	let sessionID = cookie.split(".")[0];
+	await Session.findOne({sessionID: sessionID}, function(err, session){
+		if (err){console.log(err)}
+		else if (session){
+			session.expireAt = Date.now();
+			session.save();
+			res.send(true);
+		}
+		else {
+			res.send(false);
+		}
 	});
+});
+
+function checkAuth(email) {
+	email = email.toLowerCase();
+	//console.log('check '+ email);
+	
+	let result = false;
+	if ( email in authWhiteLiast ) {
+		result = true;
+	} else {
+		for (let i = 0; i < authDomains.length; i++) {
+			if ( email.includes(authDomains[i]) ) {
+				result = true;
+				break;
+			}
+		}
+	}
+	return result;
+}
 
 module.exports = app;

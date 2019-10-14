@@ -1,7 +1,13 @@
 {
-        "serverUrl": "http://localhost",
-        "serverPort": 4000,
-        "clientUrl": "http://localhost",
-        "clientPort": 8080,
-        "scheduleKey": "a key to keep this safe"
+  "serverUrl": "http://localhost",
+  "serverPort": 4000,
+  "serverProxiPort":4000,
+  "clientUrl": "http://localhost",
+  "clientPort": 8080,
+  "scheduleKey": "a key to keep this safe",
+  "overSSL": false,
+  "authDomains": ["manaiakalani.org"],
+  "authWhitelist": {
+    "fotterly@gmail.com": 1
+  }
 }
