@@ -11,7 +11,9 @@
 				</option>
 			</select></label><br>
 			<label for="checkbox">Automatically check the blogs on this sheet?: {{ automated }}</label>
-			<input :disabled="!editing" type="checkbox" id="checkbox" v-model="automated">
+			<input :disabled="!editing" type="checkbox" id="checkbox" v-model="automated"><br>
+			<label for="processBox">Tweet all latest blog posts when this sheet is added: </label>
+			<input :disabled="!editing" type="checkbox" id="processBox" v-model="tweetOnAdd">
 			<button v-if="editing" style="float:right;margin-right:40px;margin-top:20px" @click="addSheet">save sheet to cluster</button>
 		</div>
 		<div v-if="errorList.length > 0" style="margin-top:40px;margin-left:40px;margin-right:40px;border:3px solid red;border-radius:4px;background-color:#ffb2ae;color:black">
@@ -74,7 +76,8 @@
 			rowNum: '',
 			sheetDATA: [],
 			automated: true,
-			errorList: []
+			errorList: [],
+			tweetOnAdd: true
 			
 			}
 		},
@@ -134,7 +137,8 @@
 						spreadsheetId: this.curSheetId,
 						sheetId: id,
 						cluster: this.ClusterId,
-						automation: this.automated
+						automation: this.automated,
+						tweet: this.tweetOnAdd
 					};
 					if (this.SheetId === 'add'){
 						let uri = '/sheets/add';

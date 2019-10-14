@@ -55,14 +55,16 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 				reject(Error(error));
 			}
 			else{
-				//itemArray.push(feed.items[0]); // Test junk
+				if(!feed.items[0]){
+					reject(false);
+				}
 				resolve(feed.items[0]); //We did it, yay
 			}
 		});
 	});
 }
 async function grabBlogs(sheet){ //Grabs all the necessary information to process blogs and check for new posts. 
-
+	console.log("GRABBING BLOGS STARTED");
 	return new Promise(async function(resolve, reject){
 		blogArray = []; //declare the array of information
 		var query = {}; //query filter object for the query
@@ -85,7 +87,7 @@ async function grabBlogs(sheet){ //Grabs all the necessary information to proces
 			
 			blogArray.push(blogInfo); //Pushes the info object into the array
 		}
-		//console.log(blogArray);
+		console.log("FINISHED GRABBING BLOGS");
 		resolve(blogArray); //Return the array of objects
 	});
 }
@@ -217,19 +219,23 @@ async function tweet (post, cluster){
 	}
 }
 
-async function processBlogs(mainSheet){
+async function processBlogs(mainSheet, tweetBlogs){
 	if (processing){
 		return console.log("Server is still processing");
 	}
 	processing = true;
+	tweetBlogs = false;
 	var blogArray = await grabBlogs(mainSheet); //wait on all the information calls before running checks. 
 	var blogOps = []; //array of operations for the bulkWrite at the end
 	var postOps = [];
 	var sheetOps = [];
 	var caught;
 	var sheet;
+	let countMe = 1;
 	for (const blogInfo of blogArray){ //iterate over the blog info array
 		caught = false;
+		console.log("Processing Blog #" + countMe);
+		countMe++;
 		let blog = blogInfo.blog;
 		sheet = blog.sheet;
 		
@@ -245,11 +251,14 @@ async function processBlogs(mainSheet){
 					update: {active: false}
 				}
 			});
-			
+			let errorType = "Bad Url";
+			if(!rej){
+				errorType = "Empty Blog";
+			}
 			sheetOps.push({ //updates the list of errors on the sheet
 				updateOne: { 
 					filter: {_id: sheet._id},
-					update: {$push: {error: {"row": blog.row, "error": "Bad Url", "url": blog.baseUrl }}}
+					update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
 				}
 			});
 			
@@ -268,7 +277,9 @@ async function processBlogs(mainSheet){
 			post.blog = blog; //setting refs between the post and the blog
 			blog.post = post;
 			
-			tweet(post, blog.cluster);
+			if (tweetBlogs){
+				tweet(post, blog.cluster);
+			}
 			
 			postOps.push({ //push insert operation to array
 				insertOne: {
@@ -341,7 +352,7 @@ async function processBlogs(mainSheet){
 	}
 }
 
-function addBlogs(sheet){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
+function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
 		blogArray = [];
@@ -399,11 +410,11 @@ function addBlogs(sheet){ //This function adds the blogs from a sheet to the dat
 			if (sheet.error.length > 0){
 				sheet.save().then(res =>{
 					console.log("Errors pushed to sheet");
-					processBlogs(sheet);
+					processBlogs(sheet, tweetBlogs);
 				});
 			}
 			else{
-				processBlogs(sheet);
+				processBlogs(sheet, tweetBlogs);
 			}
 		});
 	});
@@ -502,10 +513,13 @@ sheetRoutes.route('/add').post(async function (req, res) { //Adds sheets to the 
 	if (!auth){
 		return;
 	}
+	let tweetOnAdd = req.body.tweet;
+	delete req.body.tweet;
+	
 	var entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.
 		entry.save().then(
 			entry => {
-				addBlogs(entry);
+				addBlogs(entry, tweetOnAdd);
 				res.status(200).json({'entry': 'Entry added successfully'});
 			}).catch(err => {
 				res.status(400).send('Unable to save to database');

@@ -5,12 +5,12 @@ import routes from './routes'
 import axios from 'axios'
 import VueAxios from 'vue-axios'
 var config = require('./config.json');
-var server = config.serverAddress;
+var server = config.serverUrl + ':' + config.serverPort;
 
 Vue.config.productionTip = false
 Vue.use(VueRouter);
 Vue.use(VueAxios, axios);
-axios.defaults.baseURL = server; //server url for backend http requests
+axios.defaults.baseURL = server + '/api/'; //server url for backend http requests
 axios.defaults.withCredentials = true;
 
 const router = new VueRouter({

@@ -2,8 +2,8 @@ var express = require('express');
 var config = require('../config.json');
 var app = express();
 var secret = require('../secret.json');
-var server = config.serverAddress;
-var client = config.clientAddress;
+var server = config.serverUrl + ':' + config.serverPort;
+var client = config.clientUrl + ':' + config.clientPort;
 var TWITTER_CONSUMER_KEY = secret.TWITTER_API_KEY;
 var TWITTER_CONSUMER_SECRET = secret.TWITTER_API_KEY_SECRET;
 var googleClient = secret.GOOGLE_CLIENT_ID;
@@ -19,7 +19,7 @@ passport.deserializeUser((user, done) => done(null, user));
 passport.use(new GoogleStrategy({
 	clientID: googleClient,
 	clientSecret: googleSecret,
-	callbackURL: server + "/auth/google/callback"
+	callbackURL: server + "/api/auth/google/callback"
 	},
 	function(accessToken, refreshToken, user, done){
 		let domain = user.emails[0].value;
@@ -33,7 +33,7 @@ passport.use(new GoogleStrategy({
 passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 		consumerKey: TWITTER_CONSUMER_KEY, //app key from the twitter dev dashboard
 		consumerSecret: TWITTER_CONSUMER_SECRET,// app key secret from the twitter dev dashboard
-		callbackURL: server + "/auth/twitter/callback", //callback address for twitter response - MUST be set in the dev dashboard as well. 
+		callbackURL: server + "/api/auth/twitter/callback", //callback address for twitter response - MUST be set in the dev dashboard as well. 
 		passReqToCallback: true //important for app to maintain context of authentication (what Cluster the tokens are being saved/tied to)
 	},
 	function(req, token, tokenSecret, user, done){ //Runs once authentication is completed, it will save the acquired tokens to the relevant Cluster in the db.
@@ -55,21 +55,21 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 	}
 ));
 
-	app.get('/auth/twitter/test/:cluster', function(req, res, next){ //initial auth call, where passport begins the auth 1.0a process
+	app.get('/api/auth/twitter/init/:cluster', function(req, res, next){ //initial auth call, where passport begins the auth 1.0a process
 		req.session.cluster = req.params.cluster; //saves the cluster id to the session
 		passport.authenticate('twitter',{userAuthorizationURL: 'https://api.twitter.com/oauth/authenticate?force_login=true'})(req,res,next); //begins the auth chain
 	});
 
-	app.get('/auth/twitter/callback', passport.authenticate('twitter', //called when twitter responds
-		{successRedirect: client + '/auth/twitter/callback',  //redirect for a successful auth chain
+	app.get('/api/auth/twitter/callback', passport.authenticate('twitter', //called when twitter responds
+		{successRedirect: client + '/api/auth/twitter/callback',  //redirect for a successful auth chain
 		failureRedirect: client + '/404'} //redirect for a failed auth chain
 	));
 	
-	app.get('/auth/google', passport.authenticate('google', 
+	app.get('/api/auth/google', passport.authenticate('google', 
 		{ scope: ['profile', 'email'], hostedDomain:['manaiakalani.org']}
 	));
 	
-	app.get('/auth/google/callback', 
+	app.get('/api/auth/google/callback', 
 		passport.authenticate('google', { failureRedirect: client + '/'}),
 		function(req, res) {
 			var session = new Session({
@@ -83,7 +83,7 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 			});
 	});
 	
-	app.get('/auth/google/session', async function(req, res)	{
+	app.get('/api/auth/google/session', async function(req, res)	{
 		if (!req.headers.cookie){
 			res.send(false);
 			return;

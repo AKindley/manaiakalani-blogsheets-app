@@ -10,13 +10,13 @@
 </template>
 <script>
 var config = require('../config.json');
-var server = config.serverAddress;
+var server = config.serverUrl + ':' + config.serverPort;
 export default {
 	name: 'home',
 	methods:{
 		googleLog(event){
 			event.preventDefault();
-			window.location = server + '/auth/google';
+			window.location = server + '/api/auth/google';
 		}
 	}
 }

@@ -41,7 +41,7 @@
 <script>
 import SheetDiv from '../components/SheetDiv.vue'
 var config = require('../config.json');
-var server = config.serverAddress;
+var server = config.serverUrl + ':' + config.serverPort;
 export default {
 	name: 'clusterzz',
 	props: ['cluster'],
@@ -99,7 +99,7 @@ export default {
 		async twitterLog(event) {
 			event.preventDefault();
 			if(await this.sessionCall()){
-				window.open( server + '/auth/twitter/test/' + this.cluster); //Twitter auth link call
+				window.open( server + '/api/auth/twitter/init/' + this.cluster); //Twitter auth link call
 			}
 			else{this.$router.push('/');}
 		},
