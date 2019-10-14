@@ -1,0 +1,7 @@
+{
+        "serverUrl": "http://localhost",
+        "serverPort": 4000,
+        "clientUrl": "http://localhost",
+        "clientPort": 8080,
+        "scheduleKey": "a key to keep this safe"
+}
