@@ -51,6 +51,7 @@ clusterRoutes.route('/').get(async function (req, res) {
 			console.log(err);
 		}
 		else {
+			let clusterList = [];
 			for (let cluster of clusters){
 				let errList = [];
 				await Sheet.find({cluster: cluster},function(err, sheets){
@@ -62,12 +63,19 @@ clusterRoutes.route('/').get(async function (req, res) {
 							errCount += sheet.error.length;
 							errSheet += 1
 						}
+						
 						errList.push({"sheetCount" : errSheet, "errorCount" : errCount});
-						cluster.error = errList;
+						let cleanedCluster = {
+							id: cluster._id,
+							name: cluster.name,
+							twitter: cluster.twitter,
+							error: errList
+						}
+						clusterList.push(cleanedCluster);
 					}
 				});
 			}
-			res.json(clusters);
+			res.json(clusterList);
 		}
 	});
 });
