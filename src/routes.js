@@ -26,7 +26,7 @@ export default [
 		props: true
 	},
 	{
-		path: '/api/auth/twitter/callback',
+		path: '/auth/twitter/callback',
 		component: Callback
 		
 	},
