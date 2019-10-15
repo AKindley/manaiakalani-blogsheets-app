@@ -1,16 +1,15 @@
 const secret = require('./secret.json');
 const config = require('./config.json');
-const express = require('express'),
-	session = require ('express-session'),
-	path = require('path'),
-	bodyParser = require('body-parser'),
-	cors = require('cors'),
-	mongoose = require('mongoose'),
-	clusterRoutes = require('./expressRoutes/clusterRoutes');
-	sheetRoutes = require('./expressRoutes/sheetRoutes');
-	authRoutes = require('./expressRoutes/authRoutes');
-	mongoose.Promise = global.Promise;
-	passport = require('passport');
+const express = require('express');
+const session = require ('express-session');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const mongoose = require('mongoose');
+mongoose.Promise = global.Promise;
+const clusterRoutes = require('./expressRoutes/clusterRoutes');
+const sheetRoutes = require('./expressRoutes/sheetRoutes');
+const authRoutes = require('./expressRoutes/authRoutes');
+const passport = require('passport');
 const overSSL = config.overSSL || false;
 const clientOrigin = config.clientUrl + ':' + config.clientPort;
 mongoose.set('useCreateIndex', true);

@@ -1,11 +1,10 @@
 
 
-var express = require('express');
-var app = express();
-var clusterRoutes = express.Router();
-var Cluster = require('../models/clusterStructure');
-var Sheet = require('../models/sheetStructure');
-var Session = require('../models/sessionStructure');
+let express = require('express');
+let clusterRoutes = express.Router();
+let Cluster = require('../models/clusterStructure');
+let Sheet = require('../models/sheetStructure');
+let Session = require('../models/sessionStructure');
 
 async function authCheck(req, res){
 	if (!req.headers.cookie){
@@ -33,7 +32,7 @@ clusterRoutes.route('/add').post(async function (req, res) {
 	if (!auth){
 		return;
 	}
-	var entry = new Cluster(req.body);
+	let entry = new Cluster(req.body);
 		entry.save().then(
 			entry => {
 				res.status(200).json({'entry': 'Entry added successfully'});
@@ -52,14 +51,14 @@ clusterRoutes.route('/').get(async function (req, res) {
 			console.log(err);
 		}
 		else {
-			for (cluster of clusters){
+			for (let cluster of clusters){
 				let errList = [];
 				await Sheet.find({cluster: cluster},function(err, sheets){
 					if (err){console.log(err)}
 					else{
 						let errCount = 0;
 						let errSheet = 0;
-						for (sheet of sheets){
+						for (let sheet of sheets){
 							errCount += sheet.error.length;
 							errSheet += 1
 						}
@@ -78,7 +77,7 @@ clusterRoutes.route('/edit/:id').get(async function (req, res) {
 	if (!auth){
 		return;
 	}
-	var id = req.params.id;
+	let id = req.params.id;
 	Cluster.findById(id, function(err, cluster){
 		res.json(cluster);
 	});

@@ -13,7 +13,6 @@ const authWhiteLiast = config.authWhitelist;
 const passport = require('passport'), TwitterStrategy = require('passport-twitter').Strategy, GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 const Cluster = require('../models/clusterStructure');
 const Session = require('../models/sessionStructure');
-const axios = require('axios');
 	
 passport.serializeUser((user, done) => done(null, user)); //serializeUser and deserializeUser are important for avoiding passport errors. 
 passport.deserializeUser((user, done) => done(null, user));
@@ -63,7 +62,7 @@ app.get('/api/auth/twitter/init/:cluster', function(req, res, next){ //initial a
 });
 
 app.get('/api/auth/twitter/callback', passport.authenticate('twitter', //called when twitter responds
-	{successRedirect: client + '/api/auth/twitter/callback',  //redirect for a successful auth chain
+	{successRedirect: client + '/auth/twitter/callback',  //redirect for a successful auth chain
 	failureRedirect: client + '/404'} //redirect for a failed auth chain
 ));
 	

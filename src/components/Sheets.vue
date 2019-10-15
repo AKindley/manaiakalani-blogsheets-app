@@ -19,7 +19,7 @@
 		<div v-if="errorList.length > 0" style="margin-top:40px;margin-left:40px;margin-right:40px;border:3px solid red;border-radius:4px;background-color:#ffb2ae;color:black">
 			<div style="padding:5px;border-bottom:3px solid red;background-color:#ff6961;font-size:larger"><b>Errors:</b></div>
 			<ul style="padding-inline-start:0px;list-style-type:none">
-				<b><li v-for="error in errorList" :key="`err-${error.row}`"><a target="_blank":href="cellLink + error.row">Row {{error.row}}: {{error.error}}</a></li></b>
+				<b><li v-for="error in errorList" :key="`err-${error.row}`"><a target="_blank" :href="cellLink + error.row">Row {{error.row}}: {{error.error}}</a></li></b>
 			</ul>
 		</div>
 		<div style="margin-top:40px;margin-left:40px;margin-right:40px">

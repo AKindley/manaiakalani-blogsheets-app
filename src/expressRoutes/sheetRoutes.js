@@ -1,27 +1,24 @@
-var fs = require('fs'), request = require('request');
-var HTMLParser = require('node-html-parser');
+let fs = require('fs'), request = require('request');
+let HTMLParser = require('node-html-parser');
 //////////////////////////////////////////////
-var secret = require('../secret.json');
-var config = require('../config.json');
-var apiKey = secret.API_KEY;
-var consumerKey = secret.TWITTER_API_KEY;
-var consumerSecret = secret.TWITTER_API_KEY_SECRET;
+let secret = require('../secret.json');
+let config = require('../config.json');
+let apiKey = secret.API_KEY;
+let consumerKey = secret.TWITTER_API_KEY;
+let consumerSecret = secret.TWITTER_API_KEY_SECRET;
 //////////////////////////////////////////////
-var crypto = require('crypto');
-var express = require('express');
-var app = express();
-var sheetRoutes = express.Router();
-var Sheet = require('../models/sheetStructure');
-var Blog = require('../models/blogStructure');
-var Post = require('../models/postStructure');
-var Cluster = require('../models/clusterStructure');
-var Session = require('../models/sessionStructure');
+let crypto = require('crypto');
+let express = require('express');
+let sheetRoutes = express.Router();
+let Sheet = require('../models/sheetStructure');
+let Blog = require('../models/blogStructure');
+let Post = require('../models/postStructure');
+let Session = require('../models/sessionStructure');
 let Parser = require('rss-parser');
-var parser = new Parser();
-var moment = require('moment');
-var Twit = require('twit');
-var util = require('util');
-var processing = false;
+let parser = new Parser();
+let moment = require('moment');
+let Twit = require('twit');
+let processing = false;
 const axios = require('axios');
 
 async function authCheck(req, res){
@@ -48,7 +45,7 @@ async function authCheck(req, res){
 
 async function rssParse(uri){ //This thing returns a promise, don't touch any of the async/await stuff unless you know what you're doing thanks
 	return new Promise(await function(resolve, reject) {
-		rssUrl = uri + '/feeds/posts/default?rss'; //rss url incase we need it for later meddling
+		let rssUrl = uri + '/feeds/posts/default?rss'; //rss url incase we need it for later meddling
 		parser.parseURL(rssUrl, async function(error, feed){ //rss-parse npm module, I think it's meant to be async, don't touch it
 			if (error){
 				console.log(error);
@@ -66,8 +63,8 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 async function grabBlogs(sheet){ //Grabs all the necessary information to process blogs and check for new posts. 
 	console.log("GRABBING BLOGS STARTED");
 	return new Promise(async function(resolve, reject){
-		blogArray = []; //declare the array of information
-		var query = {}; //query filter object for the query
+		let blogArray = []; //declare the array of information
+		let query = {}; //query filter object for the query
 		if (sheet == undefined || sheet == null){ //For full database checks
 			query.active = true;
 			query.automation = true;
@@ -162,7 +159,7 @@ async function tweet (post, cluster){
 	}
 	
 	if (!firstImg){
-		for (i = 0; i < 3; i++){
+		for (let i = 0; i < 3; i++){
 			await twitPost(T, {status: newTweet}).then((data) => {
 				i = 3;
 			}).catch(err => {
@@ -194,7 +191,7 @@ async function tweet (post, cluster){
 		await twitCreate(T, {media_id: mediaIdStr});
 		let params = {status: newTweet, media_ids: [mediaIdStr]};
 		
-		for (i = 0; i < 3; i++){
+		for (let i = 0; i < 3; i++){
 			console.log('Loop #' + (i + 1) + " on thing: " + newTweet);
 			await twitPost(T, params).then((data) => {
 				i = 3;
@@ -225,14 +222,14 @@ async function processBlogs(mainSheet, tweetBlogs){
 	}
 	processing = true;
 	tweetBlogs = false;
-	var blogArray = await grabBlogs(mainSheet); //wait on all the information calls before running checks. 
-	var blogOps = []; //array of operations for the bulkWrite at the end
-	var postOps = [];
-	var sheetOps = [];
-	var caught;
-	var sheet;
+	let blogArray = await grabBlogs(mainSheet); //wait on all the information calls before running checks. 
+	let blogOps = []; //array of operations for the bulkWrite at the end
+	let postOps = [];
+	let sheetOps = [];
+	let caught;
+	let sheet;
 	let countMe = 1;
-	for (const blogInfo of blogArray){ //iterate over the blog info array
+	for (let blogInfo of blogArray){ //iterate over the blog info array
 		caught = false;
 		console.log("Processing Blog #" + countMe);
 		countMe++;
@@ -292,8 +289,7 @@ async function processBlogs(mainSheet, tweetBlogs){
 					update: {post: post}
 				}
 			});			
-		}
-		else{ //otherwise performs date and url checks between the previous and the new post. 
+		} else { //otherwise performs date and url checks between the previous and the new post. 
 			let postOld = blogInfo.postOld;
 			console.log(latestPost.isoDate + ' == ' + postOld.date + '? ' + (moment(latestPost.isoDate).isSame(postOld.date))); //Testing
 			console.log('Same url?: ' + (postOld.url == latestPost.link) + '\n'); //Testing
@@ -355,11 +351,11 @@ async function processBlogs(mainSheet, tweetBlogs){
 function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
 	axios.get(uri).then((response) => {
-		blogArray = [];
+		let blogArray = [];
 		let values = response.data.values;
 		let startRow = parseInt(sheet.range.charAt(1));
-		var sheetError = false
-		for (index = 0; index < values.length; index++){
+		let sheetError = false;
+		for (let index = 0; index < values.length; index++){
 			let uri = values[index][0];
 			let rowNum = startRow + index;
 			if (!uri){
@@ -395,7 +391,7 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 				console.log("Err array" + err.writeErrors[0]);
 				console.log("Num inserted: " + err.result.result.nInserted);
 				let errorArray = err.writeErrors;
-				for (index = 0; index < errorArray.length; index++){
+				for (let index = 0; index < errorArray.length; index++){
 					let rowNum = errorArray[index].err.op.row;
 					let url = errorArray[index].err.op.baseUrl;
 					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
@@ -422,13 +418,13 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 
 async function updateBlogs(sheet){
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
-	blogOps = [];
+	let blogOps = [];
 	await axios.get(uri).then((res) => {
 		let values = res.data.values;
 		let uris = [];
 		let startRow = parseInt(sheet.range.charAt(1));
 		
-		for (index = 0; index < values.length; index++){
+		for (let index = 0; index < values.length; index++){
 			console.log(index);
 			let uri = values[index][0];
 			let rowNum = startRow + index;
@@ -472,7 +468,7 @@ async function updateBlogs(sheet){
 				console.log("Err array" + err.writeErrors); //Report errors present back to sheet --> cluster
 				console.log("Num inserted: " + err.result.result.nInserted);
 				let errorArray = err.writeErrors;
-				for (index = 0; index < errorArray.length; index++){ //error array
+				for (let index = 0; index < errorArray.length; index++){ //error array
 					let rowNum = errorArray[index].err.op.u.$set.row; //Keep an eye on this in case there's a better way to access this information.
 					let url = errorArray[index].err.op.u.$set.baseUrl; //Seems to be different error formats for inserts/upserts
 					console.log("URL AND ROW: " + rowNum + " "+ url); //debug
