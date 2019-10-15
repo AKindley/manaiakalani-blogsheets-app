@@ -9,5 +9,6 @@
   "authDomains": ["manaiakalani.org"],
   "authWhitelist": {
     "fotterly@gmail.com": 1
-  }
+  },
+  "dbName": "dbname"
 }

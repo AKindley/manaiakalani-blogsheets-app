@@ -4,6 +4,7 @@ const express = require('express');
 const session = require ('express-session');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const dbName = config.dbName || 'test5';
 const mongoose = require('mongoose');
 mongoose.Promise = global.Promise;
 const clusterRoutes = require('./expressRoutes/clusterRoutes');
@@ -13,7 +14,7 @@ const passport = require('passport');
 const overSSL = config.overSSL || false;
 const clientOrigin = config.clientUrl + ':' + config.clientPort;
 mongoose.set('useCreateIndex', true);
-mongoose.connect('mongodb://localhost/test5',{ useNewUrlParser: true }).then(
+mongoose.connect('mongodb://localhost/'+dbName,{ useNewUrlParser: true }).then(
 	() => {console.log('Database is connected')},
 	err => {console.log('Can not connect to the database' + err)}
 );
