@@ -496,7 +496,8 @@ async function updateBlogs(sheet){
 }
 
 sheetRoutes.route('/scheduleTrigger').get(function (req, res){
-	if ((req.header.authorization == config.scheduleKey) && processing){
+	//http://127.0.0.1:4000/api/sheets/scheduleTrigger
+	if ( req.headers.authorization === config.scheduleKey ){
 		processBlogs();
 	}
 	res.end();
