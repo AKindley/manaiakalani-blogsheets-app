@@ -69,7 +69,7 @@ export default {
 		async submitMe (event) {
 			event.preventDefault();
 			if(await this.sessionCall()){
-				let uri = server + '/entries/add';
+				let uri = server + '/api/entries/add';
 				let testThing = {};
 				testThing.name = this.clusterName;
 				testThing.twitter = this.clusterTwitter;
