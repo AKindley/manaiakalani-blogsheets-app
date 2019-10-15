@@ -221,7 +221,6 @@ async function processBlogs(mainSheet, tweetBlogs){
 		return console.log("Server is still processing");
 	}
 	processing = true;
-	tweetBlogs = false;
 	let blogArray = await grabBlogs(mainSheet); //wait on all the information calls before running checks. 
 	let blogOps = []; //array of operations for the bulkWrite at the end
 	let postOps = [];
@@ -317,8 +316,7 @@ async function processBlogs(mainSheet, tweetBlogs){
 						update: {post: post}
 					}
 				});
-			}
-			else{
+			} else {
 				console.log("No new post for this blog: " + blog.baseUrl + "\n");
 			}
 			
