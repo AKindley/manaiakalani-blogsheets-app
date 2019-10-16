@@ -394,13 +394,16 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 		Blog.bulkWrite(blogArray, {ordered: false}, function (err, res) {
 			if (err){
 				sheetError = true;
-				console.log("Err array" + err.writeErrors[0]);
-				console.log("Num inserted: " + err.result.result.nInserted);
-				let errorArray = err.writeErrors;
-				for (let index = 0; index < errorArray.length; index++){
-					let rowNum = errorArray[index].err.op.row;
-					let url = errorArray[index].err.op.baseUrl;
-					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
+				console.log(err);
+				//console.log("Err array" + err.writeErrors[0]);
+				//console.log("Num inserted: " + err.result.result.nInserted);
+				if (err.writeErrors) {
+					let errorArray = err.writeErrors;
+					for (let index = 0; index < errorArray.length; index++){
+						let rowNum = errorArray[index].err.op.row;
+						let url = errorArray[index].err.op.baseUrl;
+						sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
+					}
 				}
 				/*sheet.save().then(res => {
 					console.log("Errors pushed to sheet");
