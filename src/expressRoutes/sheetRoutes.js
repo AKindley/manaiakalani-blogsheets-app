@@ -394,20 +394,13 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 		Blog.bulkWrite(blogArray, {ordered: false}, function (err, res) {
 			if (err){
 				sheetError = true;
-				console.log(err);
-				//console.log("Err array" + err.writeErrors[0]);
-				//console.log("Num inserted: " + err.result.result.nInserted);
-				if (err.writeErrors) {
-					let errorArray = err.writeErrors;
-					for (let index = 0; index < errorArray.length; index++){
-						let rowNum = errorArray[index].err.op.row;
-						let url = errorArray[index].err.op.baseUrl;
-						sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
-					}
+				for (errs in err.writeErrors){
+					let rowNum = errs.op.u.$set.row;
+					let url = errs.op.u.$set.baseUrl;
+					let rowNum = errorArray[index].err.op.row;
+					let url = errorArray[index].err.op.baseUrl;
+					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
 				}
-				/*sheet.save().then(res => {
-					console.log("Errors pushed to sheet");
-				});*/
 			}
 			else {
 				console.log("No issues adding " + res.insertedCount + " blogs");
@@ -473,13 +466,12 @@ async function updateBlogs(sheet){
 		
 		Blog.bulkWrite(blogOps, {ordered: false}, function (err, res){ //bulkWrite all operations
 			if (err){ 
+
+				for (errs in err.writeErrors){
+					let rowNum = errs.op.u.$set.row;
+					let url = errs.op.u.$set.baseUrl;
 				
-				console.log("Err array" + err.writeErrors); //Report errors present back to sheet --> cluster
-				console.log("Num inserted: " + err.result.result.nInserted);
-				let errorArray = err.writeErrors;
-				for (let index = 0; index < errorArray.length; index++){ //error array
-					let rowNum = errorArray[index].err.op.u.$set.row; //Keep an eye on this in case there's a better way to access this information.
-					let url = errorArray[index].err.op.u.$set.baseUrl; //Seems to be different error formats for inserts/upserts
+				//Seems to be different error formats for inserts/upserts
 					console.log("URL AND ROW: " + rowNum + " "+ url); //debug
 					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url }); //Push to error array in sheet
 				}
