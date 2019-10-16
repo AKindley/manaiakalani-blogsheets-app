@@ -395,10 +395,8 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 			if (err){
 				sheetError = true;
 				for (errs in err.writeErrors){
-					let rowNum = errs.op.u.$set.row;
-					let url = errs.op.u.$set.baseUrl;
-					let rowNum = errorArray[index].err.op.row;
-					let url = errorArray[index].err.op.baseUrl;
+					let rowNum = errs.err.op.row;
+					let url = errs.err.op.baseUrl;
 					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
 				}
 			}
