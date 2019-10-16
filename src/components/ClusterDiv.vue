@@ -24,7 +24,7 @@
 		methods:{
 			clusterLink (event) {
 				event.preventDefault();
-				this.$router.push(window.location.pathname + '/' + this.cluster._id);
+				this.$router.push(window.location.pathname + '/' + this.cluster.id);
 			}
 		}
 		
