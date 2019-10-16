@@ -48,7 +48,7 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 		let rssUrl = uri + '/feeds/posts/default?rss'; //rss url incase we need it for later meddling
 		parser.parseURL(rssUrl, async function(error, feed){ //rss-parse npm module, I think it's meant to be async, don't touch it
 			if (error){
-				console.log(error);
+				//console.log(error);
 				reject(Error(error));
 			}
 			else{
@@ -199,7 +199,7 @@ async function tweet (post, cluster){
 		let params = {status: newTweet, media_ids: [mediaIdStr]};
 		
 		for (let i = 0; i < 3; i++){
-			console.log('Loop #' + (i + 1) + " on thing: " + newTweet);
+			//console.log('Loop #' + (i + 1) + " on thing: " + newTweet);
 			await twitPost(T, params).then((data) => {
 				i = 3;
 			}).catch((err) => {
@@ -234,18 +234,16 @@ async function processBlogs(mainSheet, tweetBlogs){
 	let sheetOps = [];
 	let caught;
 	let sheet;
-	let countMe = 1;
 	for (let blogInfo of blogArray){ //iterate over the blog info array
 		caught = false;
-		console.log("Processing Blog #" + countMe);
-		countMe++;
+
 		let blog = blogInfo.blog;
-		sheet = blog.sheet;
-		
-		if (!blog.active){
+		if (!blog.active){ // skip deactive blogs
 			continue;
 		}
-		
+		console.log("Processing Blog id" + blog._id);
+		sheet = blog.sheet;
+
 		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
 			//If there's an issue with parsing the url, we push error updates
 			blogOps.push({ //Set blog to inactive so it's not being checked
@@ -264,9 +262,7 @@ async function processBlogs(mainSheet, tweetBlogs){
 					update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
 				}
 			});
-			
 			caught = true;
-			
 		}); //new? post from the rss feed of the blog
 		if (caught){continue;}
 		if (blog.post == undefined || blog.post == null){ //if no blog post is present, select latest post
@@ -298,9 +294,7 @@ async function processBlogs(mainSheet, tweetBlogs){
 			});			
 		} else { //otherwise performs date and url checks between the previous and the new post. 
 			let postOld = blogInfo.postOld;
-			console.log(latestPost.isoDate + ' == ' + postOld.date + '? ' + (moment(latestPost.isoDate).isSame(postOld.date))); //Testing
-			console.log('Same url?: ' + (postOld.url == latestPost.link) + '\n'); //Testing
-			if (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)){ //Checks url and date of old and new post to ensure they're different, and that it's a new post. 
+			if ( postOld == null || (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)) ){ //Checks url and date of old and new post to ensure they're different, and that it's a new post. 
 				let post = new Post({
 					url: latestPost.link,
 					title: latestPost.title,
@@ -365,12 +359,12 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 			let uri = values[index][0];
 			let rowNum = startRow + index;
 			if (!uri){
-				sheet.error.push({"row": rowNum, "error": "Missing Url", "url": "None"});
+				//sheet.error.push({"row": rowNum, "error": "Missing Url", "url": "None"});
 				sheetError = true;
 				continue;
 			}
-			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
-				uri = 'https://' + uri;
+			if (!uri.match(/^[a-zA-Z]+:\/\//)){
+				uri = 'http://' + uri;
 			}
 			var blog = new Blog({
 				baseUrl: uri,
@@ -399,8 +393,7 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 					let url = errs.err.op.baseUrl;
 					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
 				}
-			}
-			else {
+			} else {
 				console.log("No issues adding " + res.insertedCount + " blogs");
 			}
 			if (sheet.error.length > 0){
@@ -408,8 +401,7 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 					console.log("Errors pushed to sheet");
 					processBlogs(sheet, tweetBlogs);
 				});
-			}
-			else{
+			} else{
 				processBlogs(sheet, tweetBlogs);
 			}
 		});
@@ -423,21 +415,20 @@ async function updateBlogs(sheet){
 		let values = res.data.values;
 		let uris = [];
 		let startRow = parseInt(sheet.range.charAt(1));
+		let rowNum = startRow;
 		
-		for (let index = 0; index < values.length; index++){
-			console.log(index);
-			let uri = values[index][0];
-			let rowNum = startRow + index;
-			if (!uri){
-				sheet.error.push({"row": rowNum, "error": "Missing Url", "url": "None"});
-				continue;
+		for (value in values){
+			let uri = value[0];
+			if (uri === '' || uri == undefined){
+				//sheet.error.push({"row": rowNum, "error": "Missing Url", "url": "None"});
+				rowNum++;
+				continue;// just skip
 			}
 			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
 				uri = 'https://' + uri;
 			}
 			uris.push(uri);
-			
-			
+
 			blogOps.push({ //"Update" if exists, insert if it doesn't
 				updateOne: {
 					filter: {baseUrl: uri, sheet: sheet},
@@ -453,7 +444,7 @@ async function updateBlogs(sheet){
 					setDefaultsOnInsert: true
 				}
 			});
-			
+			rowNum++;
 		}
 		blogOps.push({ //Set all urls no longer present in the sheet to inactive so that they're not checked for posts.
 			updateMany: {
