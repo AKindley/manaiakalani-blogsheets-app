@@ -132,6 +132,10 @@ async function twitPost(T, options){
 	});
 }
 async function tweet (post, cluster){
+	if ( cluster.access_token == '' || cluster.access_token == undefined){
+		console.log(cluster.name + ' has no twiiter credentuals, tweet skipped');
+		return 1;
+	}
 	var T = new Twit({
 		consumer_key: consumerKey,
 		consumer_secret: consumerSecret,
@@ -179,7 +183,7 @@ async function tweet (post, cluster){
 					i = 3;
 				}
 			});
-			console.log(i);
+			//console.log(i);
 		}
 	}	
 	else{
@@ -241,7 +245,7 @@ async function processBlogs(mainSheet, tweetBlogs){
 		if (!blog.active){ // skip deactive blogs
 			continue;
 		}
-		console.log("Processing Blog id" + blog._id);
+		console.log("Processing Blog " + blog.baseUrl);
 		sheet = blog.sheet;
 
 		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
