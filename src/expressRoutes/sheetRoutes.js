@@ -466,8 +466,10 @@ async function updateBlogs(sheet){
 			if (err){ 
 
 				for (errs in err.writeErrors){
-					let rowNum = errs.op.u.$set.row;
-					let url = errs.op.u.$set.baseUrl;
+					// let rowNum = errs.op.u.$set.row;
+					// let url = errs.op.u.$set.baseUrl;
+					let rowNum = errs.op;
+					let url = errs.op;
 				
 				//Seems to be different error formats for inserts/upserts
 					console.log("URL AND ROW: " + rowNum + " "+ url); //debug
