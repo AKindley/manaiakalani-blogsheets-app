@@ -138,8 +138,15 @@ async function tweet (post, cluster){
 		access_token: cluster.access_token,
 		access_token_secret: cluster.access_token_secret
 	});
-		
-	let newTweet = post.title + ' ' + post.url + ' ' + post.snippet;
+	
+	
+
+	if (post.title === undefined || post.title === 'undefined'){ // fix undefined 
+		post.title= '';
+	}
+
+	let newTweet = (post.title + ' ' + post.url + ' ' + post.snippet.replace(/\&nbsp;/g, '').trim());
+	//console.log(newTweet);
 	if (newTweet.length >= 280){
 		newTweet = newTweet.substring(0, 277) + '...';
 	}
@@ -164,7 +171,7 @@ async function tweet (post, cluster){
 				i = 3;
 			}).catch(err => {
 				if (err.code == 187){
-					console.log(err);
+					console.log('Duplicate post: '+err);
 					i = 3;
 				}
 				else if (i >= 2){
@@ -263,6 +270,7 @@ async function processBlogs(mainSheet, tweetBlogs){
 		}); //new? post from the rss feed of the blog
 		if (caught){continue;}
 		if (blog.post == undefined || blog.post == null){ //if no blog post is present, select latest post
+
 			let post = new Post({
 				url: latestPost.link,
 				title: latestPost.title,
