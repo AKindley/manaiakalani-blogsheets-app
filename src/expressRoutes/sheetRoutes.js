@@ -226,8 +226,133 @@ async function tweet (post, cluster){
 		}
 	}
 }
-
 async function processBlogs(mainSheet, tweetBlogs){
+	if (processing){
+		return console.log("Server is still processing");
+	}
+	processing = true;
+	let blogArray = await grabBlogs(mainSheet);
+	let sheetOps = [];
+	let caught;
+	let sheet;
+	let blogCount = 0;
+	let errCount = 0;
+	let postCount = 0;
+	for (let blogInfo of blogArray){
+		caught = false;
+
+		let blog = blogInfo.blog;
+		if (!blog.active){
+			continue;
+		}
+		console.log("Processing Blog " + blog.baseUrl);
+		sheet = blog.sheet;
+
+		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
+			blog.active = false;
+			if (!rej){
+				//Do absolutely nothing because every sheet has empty spaces
+			}
+			else if (rej){
+				let errorType = "Bad Url";
+				sheetOps.push({ //updates the list of errors on the sheet
+					updateOne: { 
+						filter: {_id: sheet._id},
+						update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
+					}
+				});
+			}
+			caught = true;
+		});
+		if (caught){continue;}
+		if (!blog.post){ //if no post is present, select last post on blog
+			let post = new Post({
+				url: latestPost.link,
+				title: latestPost.title,
+				date: latestPost.isoDate,
+				content: latestPost.content,
+				snippet: latestPost.contentSnippet
+			});
+			post.blog = blog; //setting refs between the post and the blog
+			blog.post = post;
+			let clearToTweet = true;
+			let blogSave = await blog.save((err)=>{
+				if (err){
+					clearToTweet = false;
+					console.log("Something went wrong while saving this blog");
+					console.log(post);
+				}
+			});
+			let postSave = await post.save((err)=>{
+				if (err){
+					clearToTweet = false;
+					console.log("Something went wrong while saving this post");
+					console.log(post);
+				}
+			});
+
+			if (tweetBlogs && clearToTweet){
+				tweet(post, blog.cluster);
+			}
+		}
+		else{
+			let postOld = blogInfo.postOld;
+			if ( !postOld || (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)) ){ //Checks url and date of old and new post to ensure they're different, and that it's a new post. 
+				let post = new Post({
+					url: latestPost.link,
+					title: latestPost.title,
+					date: latestPost.isoDate,
+					content: latestPost.content,
+					snippet: latestPost.contentSnippet
+				});
+				post.blog = blog; //setting refs between the post and the blog
+				blog.post = post;
+
+				let clearToTweet = true;
+				let blogSave = await blog.save((err)=>{
+					if (err){
+						clearToTweet = false;
+						console.log("Something went wrong while saving this blog");
+						console.log(post);
+					}
+				});
+				let postSave = await post.save((err)=>{
+					if (err){
+						clearToTweet = false;
+						console.log("Something went wrong while saving this post");
+						console.log(post);
+					}
+				});
+
+				if (tweetBlogs && clearToTweet){
+					tweet(post, blog.cluster);
+				}
+			} 
+			else {
+				console.log("No new post for this blog: " + blog.baseUrl + "\n");
+			}
+			
+		}
+
+	}
+	if (sheetOps.length){
+		if (sheetOps.length > 0){
+			Sheet.bulkWrite(sheetOps).then(res => {
+				console.log("New Errors: " + res.modifiedCount);
+			});
+		}
+		processing = false;
+	}
+	else{
+		console.log("No Updates This Time.");
+		processing = false; 
+	}
+	
+}
+/////////////////////////////////////////////////////////
+////////////KILL ME MAYBE////////////////////////////////
+/////////////////////////////////////////////////////////
+async function processBlogsOLD(mainSheet, tweetBlogs){
 	if (processing){
 		return console.log("Server is still processing");
 	}
@@ -258,14 +383,17 @@ async function processBlogs(mainSheet, tweetBlogs){
 			});
 			let errorType = "Bad Url";
 			if(!rej){
-				errorType = "Empty Blog";
+				//errorType = "Empty Blog";
+				//do nothing, these errors aren't important
 			}
-			sheetOps.push({ //updates the list of errors on the sheet
-				updateOne: { 
-					filter: {_id: sheet._id},
-					update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
-				}
-			});
+			else{
+				sheetOps.push({ //updates the list of errors on the sheet
+					updateOne: { 
+						filter: {_id: sheet._id},
+						update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
+					}
+				});
+			}
 			caught = true;
 		}); //new? post from the rss feed of the blog
 		if (caught){continue;}
@@ -351,6 +479,8 @@ async function processBlogs(mainSheet, tweetBlogs){
 		processing = false; 
 	}
 }
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
 
 function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
@@ -393,6 +523,10 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 			if (err){
 				sheetError = true;
 				for (errs in err.writeErrors){
+					if(!errs.err){
+						console.log(errs);
+						continue;
+					}
 					let rowNum = errs.err.op.row;
 					let url = errs.err.op.baseUrl;
 					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
