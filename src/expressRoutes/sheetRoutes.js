@@ -231,6 +231,7 @@ async function processBlogs(mainSheet, tweetBlogs){
 		return console.log("Server is still processing");
 	}
 	processing = true;
+	let clearToTweet;
 	let blogArray = await grabBlogs(mainSheet);
 	let sheetOps = [];
 	let caught;
@@ -275,22 +276,18 @@ async function processBlogs(mainSheet, tweetBlogs){
 			});
 			post.blog = blog; //setting refs between the post and the blog
 			blog.post = post;
-			let clearToTweet = true;
-			let blogSave = await blog.save((err)=>{
-				if (err){
-					clearToTweet = false;
-					console.log("Something went wrong while saving this blog");
-					console.log(post);
-				}
+			clearToTweet = true;
+			let blogSave = await blog.save().catch((err)=>{
+				clearToTweet = false;
+				console.log("Something went wrong while saving this blog");
+				console.log(err);
 			});
-			let postSave = await post.save((err)=>{
-				if (err){
-					clearToTweet = false;
-					console.log("Something went wrong while saving this post");
-					console.log(post);
-				}
+			let postSave = await post.save().catch((err)=>{
+				clearToTweet = false;
+				console.log("Something went wrong while saving this post");
+				console.log(err);
 			});
-
+			
 			if (tweetBlogs && clearToTweet){
 				tweet(post, blog.cluster);
 			}
@@ -308,22 +305,18 @@ async function processBlogs(mainSheet, tweetBlogs){
 				post.blog = blog; //setting refs between the post and the blog
 				blog.post = post;
 
-				let clearToTweet = true;
-				let blogSave = await blog.save((err)=>{
-					if (err){
-						clearToTweet = false;
-						console.log("Something went wrong while saving this blog");
-						console.log(post);
-					}
+				clearToTweet = true;
+				let blogSave = await blog.save().catch((err)=>{
+					clearToTweet = false;
+					console.log("Something went wrong while saving this blog");
+					console.log(err);
 				});
-				let postSave = await post.save((err)=>{
-					if (err){
-						clearToTweet = false;
-						console.log("Something went wrong while saving this post");
-						console.log(post);
-					}
-				});
+				let postSave = await post.save().catch((err)=>{
+					clearToTweet = false;
+					console.log("Something went wrong while saving this post");
+					console.log(err);
 
+				});
 				if (tweetBlogs && clearToTweet){
 					tweet(post, blog.cluster);
 				}
