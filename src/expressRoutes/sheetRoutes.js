@@ -55,7 +55,12 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 				if(!feed.items[0]){
 					reject(false);
 				}
-				resolve(feed.items[0]); //We did it, yay
+				let postData = feed.items[0];
+				if (typeof(postData.title) == 'object') {
+					postData['title'] = '';
+				}
+
+				resolve(postData); //We did it, yay
 			}
 		});
 	});
