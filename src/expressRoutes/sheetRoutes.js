@@ -67,14 +67,13 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 }
 async function grabBlogs(sheet){ //Grabs all the necessary information to process blogs and check for new posts. 
 	console.log("GRABBING BLOGS STARTED");
-	return new Promise(async function(resolve, reject){
+	return new Promise(async function(resolve, reject) {
 		let blogArray = []; //declare the array of information
 		let query = {}; //query filter object for the query
-		if (sheet == undefined || sheet == null){ //For full database checks
+		if ( sheet == undefined || sheet == null ){ //For full database checks
 			query.active = true;
 			query.automation = true;
-		}
-		else{ //for single sheet checks
+		} else { //for single sheet checks
 			query.active = true;
 			query.sheet = sheet._id;
 		}
@@ -239,27 +238,26 @@ async function processBlogs(mainSheet, tweetBlogs){
 	let clearToTweet;
 	let blogArray = await grabBlogs(mainSheet);
 	let sheetOps = [];
-	let caught;
 	let sheet;
 	let blogCount = 0;
 	let errCount = 0;
 	let postCount = 0;
 	for (let blogInfo of blogArray){
-		caught = false;
-
+		let caught = false;
 		let blog = blogInfo.blog;
 		if (!blog.active){
 			continue;
 		}
 		console.log("Processing Blog " + blog.baseUrl);
+//		console.log(blog);
 		sheet = blog.sheet;
+		 
 
 		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
 			blog.active = false;
 			if (!rej){
 				//Do absolutely nothing because every sheet has empty spaces
-			}
-			else if (rej){
+			} else if (rej){
 				let errorType = "Bad Url";
 				sheetOps.push({ //updates the list of errors on the sheet
 					updateOne: { 
@@ -267,11 +265,14 @@ async function processBlogs(mainSheet, tweetBlogs){
 						update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
 					}
 				});
+				caught = true;
 			}
-			caught = true;
 		});
-		if (caught){continue;}
-		if (!blog.post){ //if no post is present, select last post on blog
+		if (caught) {
+			console.log("sheet error skip tweet");
+			continue;
+		}
+		if (!blog.post) { //if no post is present, select last post on blog
 			let post = new Post({
 				url: latestPost.link,
 				title: latestPost.title,
@@ -289,15 +290,14 @@ async function processBlogs(mainSheet, tweetBlogs){
 			});
 			let postSave = await post.save().catch((err)=>{
 				clearToTweet = false;
-				console.log("Something went wrong while saving this post");
+				console.log("Something went wrong while saving this post 293");
 				console.log(err);
 			});
 			
 			if (tweetBlogs && clearToTweet){
 				tweet(post, blog.cluster);
 			}
-		}
-		else{
+		} else {
 			let postOld = blogInfo.postOld;
 			if ( !postOld || (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)) ){ //Checks url and date of old and new post to ensure they're different, and that it's a new post. 
 				let post = new Post({
@@ -313,20 +313,19 @@ async function processBlogs(mainSheet, tweetBlogs){
 				clearToTweet = true;
 				let blogSave = await blog.save().catch((err)=>{
 					clearToTweet = false;
-					console.log("Something went wrong while saving this blog");
+					console.log("Something went wrong while saving this blog ");
 					console.log(err);
 				});
 				let postSave = await post.save().catch((err)=>{
 					clearToTweet = false;
-					console.log("Something went wrong while saving this post");
+					console.log("Something went wrong while saving this post 316");
 					console.log(err);
 
 				});
 				if (tweetBlogs && clearToTweet){
 					tweet(post, blog.cluster);
 				}
-			} 
-			else {
+			} else {
 				console.log("No new post for this blog: " + blog.baseUrl + "\n");
 			}
 			
@@ -347,138 +346,6 @@ async function processBlogs(mainSheet, tweetBlogs){
 	}
 	
 }
-/////////////////////////////////////////////////////////
-////////////KILL ME MAYBE////////////////////////////////
-/////////////////////////////////////////////////////////
-async function processBlogsOLD(mainSheet, tweetBlogs){
-	if (processing){
-		return console.log("Server is still processing");
-	}
-	processing = true;
-	let blogArray = await grabBlogs(mainSheet); //wait on all the information calls before running checks. 
-	let blogOps = []; //array of operations for the bulkWrite at the end
-	let postOps = [];
-	let sheetOps = [];
-	let caught;
-	let sheet;
-	for (let blogInfo of blogArray){ //iterate over the blog info array
-		caught = false;
-
-		let blog = blogInfo.blog;
-		if (!blog.active){ // skip deactive blogs
-			continue;
-		}
-		console.log("Processing Blog " + blog.baseUrl);
-		sheet = blog.sheet;
-
-		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
-			//If there's an issue with parsing the url, we push error updates
-			blogOps.push({ //Set blog to inactive so it's not being checked
-				updateOne: {
-					filter: {_id: blog._id},
-					update: {active: false}
-				}
-			});
-			let errorType = "Bad Url";
-			if(!rej){
-				//errorType = "Empty Blog";
-				//do nothing, these errors aren't important
-			}
-			else{
-				sheetOps.push({ //updates the list of errors on the sheet
-					updateOne: { 
-						filter: {_id: sheet._id},
-						update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
-					}
-				});
-			}
-			caught = true;
-		}); //new? post from the rss feed of the blog
-		if (caught){continue;}
-		if (blog.post == undefined || blog.post == null){ //if no blog post is present, select latest post
-
-			let post = new Post({
-				url: latestPost.link,
-				title: latestPost.title,
-				date: latestPost.isoDate,
-				content: latestPost.content,
-				snippet: latestPost.contentSnippet
-			});
-			post.blog = blog; //setting refs between the post and the blog
-			blog.post = post;
-			
-			if (tweetBlogs){
-				tweet(post, blog.cluster);
-			}
-			
-			postOps.push({ //push insert operation to array
-				insertOne: {
-					document: post
-				}
-			});
-			blogOps.push({ //push update operation to array
-				updateOne: {
-					filter: {_id: blog._id},
-					update: {post: post}
-				}
-			});			
-		} else { //otherwise performs date and url checks between the previous and the new post. 
-			let postOld = blogInfo.postOld;
-			if ( postOld == null || (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)) ){ //Checks url and date of old and new post to ensure they're different, and that it's a new post. 
-				let post = new Post({
-					url: latestPost.link,
-					title: latestPost.title,
-					date: latestPost.isoDate,
-					content: latestPost.content,
-					snippet: latestPost.contentSnippet
-				});
-				post.blog = blog;
-				blog.post = post;
-				
-				tweet(post, blog.cluster);
-				
-				postOps.push({ //push insert operation to array
-					insertOne: {
-						document: post
-					}
-				});
-				blogOps.push({ //push update operation to array
-					updateOne: {
-						filter: {_id: blog._id},
-						update: {post: post}
-					}
-				});
-			} else {
-				console.log("No new post for this blog: " + blog.baseUrl + "\n");
-			}
-			
-		}
-	}
-	if (blogOps.length || postOps.length || sheetOps.length){
-		if (blogOps.length > 0){ //ignores this step if there's nothing to update/insert
-			Blog.bulkWrite(blogOps).then(res =>{ //Bulk write operation to the mongo db
-				console.log("Updated Blogs: " + res.modifiedCount);
-			});
-		}
-		if (postOps.length > 0){
-			Post.bulkWrite(postOps).then(res => {
-				console.log("Added Posts: " + res.insertedCount);
-			});
-		}
-		if (sheetOps.length > 0){
-			Sheet.bulkWrite(sheetOps).then(res => {
-				console.log("New Errors: " + res.modifiedCount);
-			});
-		}
-		processing = false;
-	}
-	else{
-		console.log("No Updates This Time.");
-		processing = false; 
-	}
-}
-////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////
 
 function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
 	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
