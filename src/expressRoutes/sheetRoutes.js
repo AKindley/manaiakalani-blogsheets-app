@@ -345,9 +345,8 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 		Blog.bulkWrite(blogArray, {ordered: false}, function (err, res) {
 			if (err){
 				sheetError = true;
-				for (errs in err.writeErrors){
+				for (errs in err.writeErrors) {
 					if(!errs.err){
-						console.log(errs);
 						continue;
 					}
 					let rowNum = errs.err.op.row;
