@@ -50,17 +50,14 @@ async function rssParse(uri){ //This thing returns a promise, don't touch any of
 			if (error){
 				//console.log(error);
 				reject(Error(error));
-			}
-			else{
-				if(!feed.items[0]){
-					reject(false);
-				}
-				let postData = feed.items[0];
-				if (typeof(postData.title) == 'object') {
-					postData['title'] = '';
-				}
-
-				resolve(postData); //We did it, yay
+			} else if (feed.items[0]) {
+					let postData = feed.items[0];
+					if (typeof(postData.title) == 'object') {
+						postData['title'] = '';
+					}
+					resolve(postData); //We did it, yay
+			} else {
+				reject(false);
 			}
 		});
 	});
@@ -100,8 +97,8 @@ async function download(uri, filename){ //download function for images
 		}
 		else{
 			request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
-				console.log('content-type:', res.headers['content-type']);
-				console.log('content-length:', res.headers['content-length']);
+				// console.log('content-type:', res.headers['content-type']);
+				// console.log('content-length:', res.headers['content-length']);
 				if (err) reject(err);
 				
 				request(uri).pipe(fs.createWriteStream(filename)).on('close', function(){resolve();}); //writestream for file saving
@@ -191,7 +188,7 @@ async function tweet (post, cluster){
 		}
 	}	
 	else{
-		let file = crypto.randomBytes(10).toString('hex') + '.png';
+		let file = 'img/' + crypto.randomBytes(10).toString('hex') + '.png';
 		let imgData = await download(firstImg.attributes.src, file);
 		let b64;
 		if (imgData) {
@@ -225,7 +222,7 @@ async function tweet (post, cluster){
 		if (file){
 			fs.unlink('./' + file, (err) => {
 				if (err) throw err;
-				console.log(file + ' was deleted');
+				//console.log(file + ' was deleted');
 			});
 		}
 	}
@@ -242,22 +239,19 @@ async function processBlogs(mainSheet, tweetBlogs){
 	let blogCount = 0;
 	let errCount = 0;
 	let postCount = 0;
-	for (let blogInfo of blogArray){
+	for (let blogInfo of blogArray) {
 		let caught = false;
 		let blog = blogInfo.blog;
+		let postOld = blogInfo.postOld;
 		if (!blog.active){
 			continue;
 		}
-		console.log("Processing Blog " + blog.baseUrl);
-//		console.log(blog);
-		sheet = blog.sheet;
-		 
+		let message = "Processing Blog " + blog.baseUrl;
+		sheet = blog.sheet; 
 
 		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
 			blog.active = false;
-			if (!rej){
-				//Do absolutely nothing because every sheet has empty spaces
-			} else if (rej){
+			if (rej) {
 				let errorType = "Bad Url";
 				sheetOps.push({ //updates the list of errors on the sheet
 					updateOne: { 
@@ -268,11 +262,9 @@ async function processBlogs(mainSheet, tweetBlogs){
 				caught = true;
 			}
 		});
-		if (caught) {
-			console.log("sheet error skip tweet");
-			continue;
-		}
-		if (!blog.post) { //if no post is present, select last post on blog
+		if (caught || latestPost === undefined) {
+			message += " post retreval error skip tweet";
+		} else if ( !postOld || (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)) ) {
 			let post = new Post({
 				url: latestPost.link,
 				title: latestPost.title,
@@ -285,62 +277,29 @@ async function processBlogs(mainSheet, tweetBlogs){
 			clearToTweet = true;
 			let blogSave = await blog.save().catch((err)=>{
 				clearToTweet = false;
-				console.log("Something went wrong while saving this blog");
-				console.log(err);
+				console.log(message + "Something went wrong while saving this blog");
+				//console.log(err);
 			});
 			let postSave = await post.save().catch((err)=>{
 				clearToTweet = false;
-				console.log("Something went wrong while saving this post 293");
-				console.log(err);
+				console.log(message + "Something went wrong while saving this post 293");
+				//console.log(err);
 			});
-			
+
 			if (tweetBlogs && clearToTweet){
 				tweet(post, blog.cluster);
+				console.log(message + " tweeted");
 			}
 		} else {
-			let postOld = blogInfo.postOld;
-			if ( !postOld || (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)) ){ //Checks url and date of old and new post to ensure they're different, and that it's a new post. 
-				let post = new Post({
-					url: latestPost.link,
-					title: latestPost.title,
-					date: latestPost.isoDate,
-					content: latestPost.content,
-					snippet: latestPost.contentSnippet
-				});
-				post.blog = blog; //setting refs between the post and the blog
-				blog.post = post;
-
-				clearToTweet = true;
-				let blogSave = await blog.save().catch((err)=>{
-					clearToTweet = false;
-					console.log("Something went wrong while saving this blog ");
-					console.log(err);
-				});
-				let postSave = await post.save().catch((err)=>{
-					clearToTweet = false;
-					console.log("Something went wrong while saving this post 316");
-					console.log(err);
-
-				});
-				if (tweetBlogs && clearToTweet){
-					tweet(post, blog.cluster);
-				}
-			} else {
-				console.log("No new post for this blog: " + blog.baseUrl + "\n");
-			}
-			
+				console.log(message + " No new post");
 		}
-
-	}
+	} // end blog loop
 	if (sheetOps.length){
-		if (sheetOps.length > 0){
-			Sheet.bulkWrite(sheetOps).then(res => {
-				console.log("New Errors: " + res.modifiedCount);
-			});
-		}
+		Sheet.bulkWrite(sheetOps).then(res => {
+			console.log("New Errors: " + res.modifiedCount);
+		});
 		processing = false;
-	}
-	else{
+	} else {
 		console.log("No Updates This Time.");
 		processing = false; 
 	}
@@ -381,8 +340,7 @@ function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a shee
 				}
 			});
 		}
-		console.log(blogArray);
-		
+		//console.log(blogArray);
 		
 		Blog.bulkWrite(blogArray, {ordered: false}, function (err, res) {
 			if (err){
@@ -456,24 +414,24 @@ async function updateBlogs(sheet){
 			}
 		});
 		
-		Blog.bulkWrite(blogOps, {ordered: false}, function (err, res){ //bulkWrite all operations
-			if (err){ 
-
-				for (errs in err.writeErrors){
-					// let rowNum = errs.op.u.$set.row;
-					// let url = errs.op.u.$set.baseUrl;
-					let rowNum = errs.op;
-					let url = errs.op;
+		Blog.bulkWrite(blogOps, {ordered: false}, function (error, res){ //bulkWrite all operations
+			if (error && error.writeErrors){ 
+				let writeErrors = error.writeErrors;
 				
-				//Seems to be different error formats for inserts/upserts
+				//console.log( error.writeErrors)
+
+				for (let errs in writeErrors) {
+					//console.log(writeErrors[errs].err.op.u['$set']);
+					let rowNum = writeErrors[errs].err.op.u['$set'].row;
+					let url = writeErrors[errs].err.op.u['$set'].baseUrl;
+					
 					console.log("URL AND ROW: " + rowNum + " "+ url); //debug
 					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url }); //Push to error array in sheet
-				}
+			}
 				/*sheet.save().then(res => {
 					console.log("Errors pushed to sheet");
 				});*/
-			}
-			else { //if no errors occur
+			} else { //if no errors occur
 				console.log("No issues adding " + res.insertedCount + " blogs");
 				console.log("No issues modifying " + res.modifiedCount + " blogs");
 			}
@@ -508,7 +466,7 @@ sheetRoutes.route('/add').post(async function (req, res) { //Adds sheets to the 
 	let tweetOnAdd = req.body.tweet;
 	delete req.body.tweet;
 	
-	var entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.
+	let entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.
 		entry.save().then(
 			entry => {
 				addBlogs(entry, tweetOnAdd);
@@ -516,6 +474,38 @@ sheetRoutes.route('/add').post(async function (req, res) { //Adds sheets to the 
 			}).catch(err => {
 				res.status(400).send('Unable to save to database');
 			});
+});
+
+sheetRoutes.route('/update/:id').post(async function (req, res) { //Updates a sheet in the database with new values.
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
+	Sheet.findById(req.params.id, async function(err, sheet) {
+		if (!sheet) return next (new Error('Could not load Document'));
+		else {
+			sheet.name = req.body.name;
+			sheet.title = req.body.title;
+			sheet.range = req.body.range;
+			sheet.cluster = req.body.cluster;
+			sheet.spreadsheetId = req.body.spreadsheetId;
+			sheet.sheetId = req.body.sheetId;
+			sheet.automation = req.body.automation;
+			sheet.error = []; //reset errors on sheet update - will be repopulated if errors still exist
+			let tweetOnAdd = req.body.tweet;
+			
+			//await Blog.updateMany({active: true, sheet: sheet._id}, {automation: sheet.automation});
+			sheet.save().then(sheet => {
+				res.json('Update complete');
+				//updateBlogs(sheet); //Update call for error checking and blog updates
+				addBlogs(sheet, tweetOnAdd);
+			})
+			.catch(err => {
+				//res.status(400).send('Unable to update the database');
+				console.log(err);
+			});
+		}
+	});
 });
 
 sheetRoutes.route('/process/:id').post(async function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
@@ -530,12 +520,11 @@ sheetRoutes.route('/process/:id').post(async function (req, res){ //Process call
 	}
 	else{
 		Sheet.findById(id, function (err, sheet){ //Processes all the active blogs in a sheet, essentially the manual blog check. 
-			if(err){
+			if (err) {
 				console.log(err);
 			}
 			else{
-				//processBlogs(sheet);
-				processBlogs(sheet);
+				processBlogs(sheet, 1);
 			}
 		});
 	}
@@ -616,35 +605,6 @@ sheetRoutes.route('/get/:id').get(async function (req, res) {
 		}
 		else {
 			res.json(sheet);
-		}
-	});
-});
-
-sheetRoutes.route('/update/:id').post(async function (req, res) { //Updates a sheet in the database with new values.
-	let auth = await authCheck(req, res);
-	if (!auth){
-		return;
-	}
-	Sheet.findById(req.params.id, async function(err, sheet) {
-		if (!sheet) return next (new Error('Could not load Document'));
-		else {
-			sheet.name = req.body.name;
-			sheet.title = req.body.title;
-			sheet.range = req.body.range;
-			sheet.cluster = req.body.cluster;
-			sheet.spreadsheetId = req.body.spreadsheetId;
-			sheet.sheetId = req.body.sheetId;
-			sheet.automation = req.body.automation;
-			sheet.error = []; //reset errors on sheet update - will be repopulated if errors still exist
-			
-			//await Blog.updateMany({active: true, sheet: sheet._id}, {automation: sheet.automation});
-			sheet.save().then(sheet => {
-				res.json('Update complete');
-				updateBlogs(sheet); //Update call for error checking and blog updates
-			})
-			.catch(err => {
-				res.status(400).send('Unable to update the database');
-			});
 		}
 	});
 });

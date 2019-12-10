@@ -21,7 +21,7 @@ yarn-error.log*
 *.sw*
 
 src/secret\.json
-
+img/*.png
 src/temp.png
 
 src/config.json
