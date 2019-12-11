@@ -160,9 +160,9 @@ async function tweet (post, cluster){
 	let firstImg = doc.querySelector("img");
 	let firstIframe = doc.querySelector("iframe");
 	
-	if (!firstImg && firstIframe){
+	if (!firstImg && firstIframe) {
 		let iframeLink = firstIframe.attributes.src;
-		if (newTweet.length + 25 >= 280){
+		if (newTweet.length + 25 >= 280) {
 			newTweet = newTweet.substring(0, 252) + '... ' + iframeLink;
 		}
 		else {
@@ -186,9 +186,9 @@ async function tweet (post, cluster){
 			});
 			//console.log(i);
 		}
-	}	
-	else{
-		let file = 'img/' + crypto.randomBytes(10).toString('hex') + '.png';
+	} else {
+		let path = 'img/';
+		let file = + crypto.randomBytes(10).toString('hex') + '.png';
 		let imgData = await download(firstImg.attributes.src, file);
 		let b64;
 		if (imgData) {
@@ -204,25 +204,20 @@ async function tweet (post, cluster){
 		let params = {status: newTweet, media_ids: [mediaIdStr]};
 		
 		for (let i = 0; i < 3; i++){
-			//console.log('Loop #' + (i + 1) + " on thing: " + newTweet);
+
 			await twitPost(T, params).then((data) => {
 				i = 3;
 			}).catch((err) => {
 				if (err.code == 187){
 					console.log(err);
 					i = 3;
-				}
-				else if (i >= 2){
-					console.log(err);
-					i = 3;
-				}
+				} else if (i >= 2) {console.log(err);}
 			});
 		}
 		
 		if (file){
 			fs.unlink('./' + file, (err) => {
 				if (err) throw err;
-				//console.log(file + ' was deleted');
 			});
 		}
 	}
@@ -230,6 +225,9 @@ async function tweet (post, cluster){
 async function processBlogs(mainSheet, tweetBlogs){
 	if (processing){
 		return console.log("Server is still processing");
+	}
+	if (tweetBlogs == undefined){
+		tweetBlogs = 1;
 	}
 	processing = true;
 	let clearToTweet;
@@ -239,16 +237,19 @@ async function processBlogs(mainSheet, tweetBlogs){
 	let blogCount = 0;
 	let errCount = 0;
 	let postCount = 0;
+	
 	for (let blogInfo of blogArray) {
 		let caught = false;
 		let blog = blogInfo.blog;
 		let postOld = blogInfo.postOld;
-		if (!blog.active){
+		
+		let message = "Processing Blog in from"+ blog.cluster.name+ ' ' + blog.baseUrl;
+		if (!blog.active){ 
+			console.log(message + " blog not active.");
 			continue;
 		}
-		let message = "Processing Blog " + blog.baseUrl;
 		sheet = blog.sheet; 
-
+		message += " from sheet "+ sheet.name;
 		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
 			blog.active = false;
 			if (rej) {
@@ -277,21 +278,28 @@ async function processBlogs(mainSheet, tweetBlogs){
 			clearToTweet = true;
 			let blogSave = await blog.save().catch((err)=>{
 				clearToTweet = false;
-				console.log(message + "Something went wrong while saving this blog");
+				console.log(message + " Something went wrong while saving this blog");
 				//console.log(err);
 			});
 			let postSave = await post.save().catch((err)=>{
 				clearToTweet = false;
-				console.log(message + "Something went wrong while saving this post 293");
-				//console.log(err);
+				console.log(message + " Something went wrong while saving this post ");
+				console.log(err);
 			});
 
-			if (tweetBlogs && clearToTweet){
-				tweet(post, blog.cluster);
-				console.log(message + " tweeted");
+			// console.log("tweetBlogs:"+tweetBlogs);
+			// console.log("clearToTweet:"+clearToTweet);
+
+			if (tweetBlogs && clearToTweet) {
+				await tweet(post, blog.cluster).catch((err)=>{
+					console.log(err);
+				});
+				console.log(message + " Tweeted");
+			} else {
+				console.log(message + " tweet supressed");
 			}
 		} else {
-				console.log(message + " No new post");
+				//console.log(message + " No new post");
 		}
 	} // end blog loop
 	if (sheetOps.length){
@@ -300,7 +308,7 @@ async function processBlogs(mainSheet, tweetBlogs){
 		});
 		processing = false;
 	} else {
-		console.log("No Updates This Time.");
+		console.log("processing compleete.");
 		processing = false; 
 	}
 	
@@ -437,11 +445,11 @@ async function updateBlogs(sheet){
 			if (sheet.error.length > 0){
 				sheet.save().then(res => {
 					console.log('Errors pushed to sheet');
-					processBlogs(sheet);
+					processBlogs(sheet, 1);
 				});
 			}
 			else{
-				processBlogs(sheet);
+				processBlogs(sheet, 1);
 			}
 		});
 	});
@@ -515,6 +523,7 @@ sheetRoutes.route('/process/:id').post(async function (req, res){ //Process call
 	let id = req.params.id; //Need to implement per cluster. 
 	if (id == 'complete'){ //Processes the entire collection of blogs, except for inactive or manual update blogs. 
 		//processBlogs();
+		console.log()
 		processBlogs();
 	}
 	else{
