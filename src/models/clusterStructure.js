@@ -1,7 +1,7 @@
 
-var mongoose = require('mongoose');
+let mongoose = require('mongoose');
 
-var clusterSchema  = new mongoose.Schema({
+let clusterSchema  = new mongoose.Schema({
 	name: String,
 	twitter: String,
 	error: Array,
