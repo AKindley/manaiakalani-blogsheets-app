@@ -2,8 +2,6 @@
 const ObjectsToCsv = require('objects-to-csv');
 const secret = require('./secret.json');
 const config = require('./config.json');
-const Parser = require('rss-parser');
-let parser = new Parser();
 let concuret = 100;
 let date = new Date();
 let dateStriing = date.getDate() + '-' + (date.getMonth()+1) + '-' + date.getFullYear();
@@ -15,44 +13,11 @@ let clusterIndex = {};
 const dbName = config.dbName || 'test5';
 const h = require('./mongoHelper.js')
 const db = new h( 'mongodb://localhost/' + dbName);
+const tweetHelper = require('./tweetHelper.js');
+const tw = new tweetHelper();
 doStuff();
 
-async function getFeeds(uri, blog){ 
-	return new Promise(await function(resolve, reject) {
-		let rssUrl = uri + '/feeds/posts/default?rss';
-		parser.parseURL(rssUrl, async function(error, feed) {
-			if (error){
-				reject(error);
-			} else if (feed.items) {
-				let result = [];
-				for (let i = 0; i < feed.items.length; i++) {
-					let post = {
-						blogUrl: uri,
-						title: feed.items[i].title,
-						link: feed.items[i].link,
-						author: feed.items[i].author,
-						pubDate: feed.items[i].pubDate,
-						sheetName: blog.sheet.name,
-						clusterName: blog.cluster.name,
-						twitter: blog.cluster.twitter
-					}
-					if (typeof(post.title) == 'object') {
-						post.title = '';
-					}
-					result.push(post);
-				}
-					resolve(result); //We did it, yay
-			} else {
-				reject(false);
-			}
-		});
-	});
-}
-
 async function doStuff() {
-	await processBlogs()
-	db.close();
-	return
 	
 	let [index, sheets] = await Promise.all([ db.populateClusterIndex(),  db.getSheets() ]);
 	let sheetArray =[];
@@ -63,9 +28,11 @@ async function doStuff() {
 		let sheetValues = await processSheets(sheedtDeets);//do this sheet by sheet so we don't have a race condistion on duplicates
 	}
 	await processBlogs();
-}
+	db.close();
+};
 
-function getSheetUpdatesForMongo(sheet, data ){
+function getSheetUpdatesForMongo(sheet, data) {
+
 	let blogArray = [];
 	let dataList = {};
 	let startRow = parseInt(sheet.range.charAt(1));
@@ -116,7 +83,7 @@ async function processSheets(sheet) {
 	let [dbStuff, data] = await Promise.all([db.getBlogsFromDB(sheet['_id']), db.getBlogsFromGSheet(sheet, apiKey)]);
 	
 	let dbSheetUrls = dbStuff.dbSheetUrls;
-	let result = getSheetUpdatesForMongo(sheet, data);
+	let result = db.getSheetUpdatesForMongo(sheet, data, clusterIndex[sheet.cluster]);
 	let dataList = result.dataList;
 	let blogArray = result.blogArray;
 
@@ -141,8 +108,9 @@ async function processSheets(sheet) {
 	await db.blogWriteBackBulk(blogArray, sheet);
 }
 async function processBlogs() {
-//	let blogs = await db.getAllBlogs(true);
-	let blogs = await db.getBlogsBySheet('5df16c4484ce28ff798e4350', true);
+	console.log('process blogs');
+	let blogs = await db.getAllBlogs(true);
+	//let blogs = await db.getBlogsBySheet('5df16c4484ce28ff798e4350', true);
 
 	let keepUnique = {}
 	let values = [];
@@ -154,19 +122,21 @@ async function processBlogs() {
 			let url = blg.baseUrl;
 
 			if (url in keepUnique) {continue;}// keep blogs in more that one cluster
-			feedArray.push(getFeeds(url, blg));
+			let feed = tw.getFeeds(url, blg); //
+			feedArray.push(feed);
 		}
 		i += concuret;
 		let result = await Promise.all(feedArray);
 
 		for (let k = 0; k < result.length; k++) {
 			let bloginstance = result[k];
+			if(bloginstance == undefined) {continue;}
 			for (let l = 0; l < bloginstance.length; l++) {
 				values.push(bloginstance[l]);
 			}
 		}
 	}
-
+	
 	console.log('Saving ' + values.length + ' to file: ' + fileOut);
 	const csv = new ObjectsToCsv(values);
 	await csv.toDisk(fileOut);
