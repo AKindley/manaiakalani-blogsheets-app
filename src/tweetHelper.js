@@ -16,7 +16,8 @@ const imagePath = 'img/';
 class tweetHelper {
 	constructor() {}
 
-	async getFeeds(uri, blog){ 
+	async getFeeds(blog){ 
+		let uri = blog.baseUrl;
 		let parser = new Parser();
 		return new Promise(await function(resolve, reject) {
 			let rssUrl = uri + '/feeds/posts/default?rss';
@@ -118,11 +119,11 @@ class tweetHelper {
 			});
 		});
 	}
-	postTweet(feedConn, post) {
+	postTweet(feedConn, twitPost) {
 		let objectScope = this;
 		return new Promise (async function(resolve, reject){
 
-			let tweetCon = await objectScope.tweetContent(post);
+			let tweetCon = await objectScope.tweetContent(twitPost);
 			if (objectScope.skipTweeting(tweetCon.newTweet)) {
 				resolve('skiped');
 			}
@@ -145,7 +146,8 @@ class tweetHelper {
 
 			feedConn.post('statuses/update', options, function(err, data, response){
 				if (err) {
-					console.log(err);
+					console.log('tweet failed')
+					console.log(err.message);
 					//reject(err);
 				}
 				resolve(data);

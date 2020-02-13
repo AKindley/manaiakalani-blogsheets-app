@@ -1,3 +1,5 @@
+`use strict`;
+
 let fs = require('fs'), request = require('request');
 let HTMLParser = require('node-html-parser');
 //////////////////////////////////////////////
@@ -20,6 +22,12 @@ let moment = require('moment');
 let Twit = require('twit');
 let processing = false;
 const axios = require('axios');
+let dbName = config.dbName;
+const h = require('../mongoHelper.js')
+const db = new h( 'mongodb://localhost/' + dbName);
+const tweetHelper = require('../tweetHelper.js');
+const tw = new tweetHelper();
+let concuret = 100;
 
 async function authCheck(req, res){
 	if (!req.headers.cookie){
@@ -43,418 +51,37 @@ async function authCheck(req, res){
 		});
 }
 
-async function rssParse(uri){ //This thing returns a promise, don't touch any of the async/await stuff unless you know what you're doing thanks
-	return new Promise(await function(resolve, reject) {
-		let rssUrl = uri + '/feeds/posts/default?rss'; //rss url incase we need it for later meddling
-		parser.parseURL(rssUrl, async function(error, feed){ //rss-parse npm module, I think it's meant to be async, don't touch it
-			if (error){
-				//console.log(error);
-				reject(Error(error));
-			} else if (feed.items[0]) {
-					let postData = feed.items[0];
-					if (typeof(postData.title) == 'object') {
-						postData['title'] = '';
-					}
-					resolve(postData); //We did it, yay
-			} else {
-				reject(false);
-			}
-		});
-	});
-}
-async function grabBlogs(sheet){ //Grabs all the necessary information to process blogs and check for new posts. 
-	console.log("GRABBING BLOGS STARTED");
-	return new Promise(async function(resolve, reject) {
-		let blogArray = []; //declare the array of information
-		let query = {}; //query filter object for the query
-		if ( sheet == undefined || sheet == null ){ //For full database checks
-			query.active = true;
-			query.automation = true;
-		} else { //for single sheet checks
-			query.active = true;
-			query.sheet = sheet._id;
-		}
-		for await (const blog of Blog.find(query).populate('cluster').populate('sheet')){ //iterate through the query, mongoose creates a cursor()
-			let blogInfo = {}; //object that contains the information for each blog
-			blogInfo.blog = blog; //blog info from the mongo db
-			if (blog.post != undefined){ //if there's a post already referenced by the blog model
-				await Post.findById(blog.post, function (err, post){ //search by id, populate won't return a model- which we require. 
-					blogInfo.postOld = post; //old post info from the mongo db
-				});
-			}
-			
-			blogArray.push(blogInfo); //Pushes the info object into the array
-		}
-		console.log("FINISHED GRABBING BLOGS");
-		resolve(blogArray); //Return the array of objects
-	});
-}
-async function download(uri, filename){ //download function for images
-	return new Promise(function(resolve, reject){
-		if (uri.substring(0,35).includes('base64,')){
-			let b64 = uri.split('base64,')[1];
-			resolve(b64);
-		}
-		else{
-			request.head(uri, function(err, res, body){ //downloads image to root server folder  using uri and filename
-				// console.log('content-type:', res.headers['content-type']);
-				// console.log('content-length:', res.headers['content-length']);
-				if (err) reject(err);
-				
-				request(uri).pipe(fs.createWriteStream(filename)).on('close', function(){resolve();}); //writestream for file saving
-			});
-		}
-	});
-}
-async function twitUpload(T, options){
-	return new Promise(function(resolve, reject){
-		T.post('media/upload', options, function(err, data, response){
-			if (err) reject(err);
-			resolve(data.media_id_string);
-		});
-	});
-}
-
-async function twitCreate(T, options){
-	return new Promise(function(resolve, reject){
-		T.post('media/metadata/create', options, function(err, data, response){
-			if (err) reject(err);
-			resolve(data);
-		});
-	});
-}
-
-async function twitPost(T, options){
-	return new Promise (function(resolve, reject){
-		T.post('statuses/update', options, function(err, data, response){
-			if (err) reject(err);
-			resolve(data);
-		});
-	});
-}
-async function tweet (post, cluster){
-	if ( cluster.access_token == '' || cluster.access_token == undefined){
-		console.log(cluster.name + ' has no twiiter credentuals, tweet skipped');
-		return 1;
-	}
-	var T = new Twit({
-		consumer_key: consumerKey,
-		consumer_secret: consumerSecret,
-		access_token: cluster.access_token,
-		access_token_secret: cluster.access_token_secret
-	});
+async function processClustersPosts(blogs, clusterID, tweetGo){
+	let [cluster, clusterPosts] = await Promise.all([ db.getClusterById(clusterID), db.getClusterPosts(clusterID)]);
+	// let cluster = await db.getClusterById(clusterID)
+	// let clusterPosts = await db.getClusterPosts(clusterID);
+	let feedConect = await tw.feedConnet(consumerKey, consumerSecret, cluster);
 	
-	
+	for (let i = 0; i < blogs.length; i++) {
+		let feedArray = [];
+		for (let j = 0; (j <= concuret && (i+j) < blogs.length); j++){// do concurently
+			let blog = blogs[i+j];
+			let feed = tw.getFeeds(blog); //
+			feedArray.push(feed);
+		}
+		i += concuret;
 
-	if (post.title === undefined || post.title === 'undefined'){ // fix undefined 
-		post.title= '';
-	}
-
-	let newTweet = (post.title + ' ' + post.url + ' ' + post.snippet.replace(/\&nbsp;/g, '').trim());
-	//console.log(newTweet);
-	if (newTweet.length >= 280){
-		newTweet = newTweet.substring(0, 277) + '...';
-	}
-	let xmlString = post.content;
-	let doc = HTMLParser.parse(xmlString);
-	let firstImg = doc.querySelector("img");
-	let firstIframe = doc.querySelector("iframe");
-	
-	if (!firstImg && firstIframe) {
-		let iframeLink = firstIframe.attributes.src;
-		if (newTweet.length + 25 >= 280) {
-			newTweet = newTweet.substring(0, 252) + '... ' + iframeLink;
-		}
-		else {
-			newTweet = newTweet + ' ' + iframeLink;
-		}
-	}
-	
-	if (!firstImg){
-		for (let i = 0; i < 3; i++){
-			await twitPost(T, {status: newTweet}).then((data) => {
-				i = 3;
-			}).catch(err => {
-				if (err.code == 187){
-					console.log('Duplicate post: '+err);
-					i = 3;
-				}
-				else if (i >= 2){
-					console.log(err);
-					i = 3;
-				}
-			});
-			//console.log(i);
-		}
-	} else {
-		let path = 'img/';
-		let file = + crypto.randomBytes(10).toString('hex') + '.png';
-		let imgData = await download(firstImg.attributes.src, file);
-		let b64;
-		if (imgData) {
-			b64 = imgData;
-			file = null;
-		}
-		else {
-			b64 = fs.readFileSync('./' + file, {encoding: 'base64'});
-		}
-		
-		let mediaIdStr = await twitUpload(T, {media_data: b64});
-		await twitCreate(T, {media_id: mediaIdStr});
-		let params = {status: newTweet, media_ids: [mediaIdStr]};
-		
-		for (let i = 0; i < 3; i++){
-
-			await twitPost(T, params).then((data) => {
-				i = 3;
-			}).catch((err) => {
-				if (err.code == 187){
-					console.log(err);
-					i = 3;
-				} else if (i >= 2) {console.log(err);}
-			});
-		}
-		
-		if (file){
-			fs.unlink('./' + file, (err) => {
-				if (err) throw err;
-			});
-		}
-	}
-}
-async function processBlogs(mainSheet, tweetBlogs){
-	if (processing){
-		return console.log("Server is still processing");
-	}
-	if (tweetBlogs == undefined){
-		tweetBlogs = 1;
-	}
-	processing = true;
-	let clearToTweet;
-	let blogArray = await grabBlogs(mainSheet);
-	let sheetOps = [];
-	let sheet;
-	let blogCount = 0;
-	let errCount = 0;
-	let postCount = 0;
-	
-	for (let blogInfo of blogArray) {
-		let caught = false;
-		let blog = blogInfo.blog;
-		let postOld = blogInfo.postOld;
-		
-		let message = "Processing Blog in from"+ blog.cluster.name+ ' ' + blog.baseUrl;
-		if (!blog.active){ 
-			console.log(message + " blog not active.");
-			continue;
-		}
-		sheet = blog.sheet; 
-		message += " from sheet "+ sheet.name;
-		let latestPost = await rssParse(blog.baseUrl).catch((rej) => {
-			blog.active = false;
-			if (rej) {
-				let errorType = "Bad Url";
-				sheetOps.push({ //updates the list of errors on the sheet
-					updateOne: { 
-						filter: {_id: sheet._id},
-						update: {$push: {error: {"row": blog.row, "error": errorType, "url": blog.baseUrl }}}
-					}
-				});
-				caught = true;
-			}
-		});
-		if (caught || latestPost === undefined) {
-			message += " post retreval error skip tweet";
-		} else if ( !postOld || (postOld.url != latestPost.link && moment(latestPost.isoDate).isAfter(postOld.date)) ) {
-			let post = new Post({
-				url: latestPost.link,
-				title: latestPost.title,
-				date: latestPost.isoDate,
-				content: latestPost.content,
-				snippet: latestPost.contentSnippet
-			});
-			post.blog = blog; //setting refs between the post and the blog
-			blog.post = post;
-			clearToTweet = true;
-			let blogSave = await blog.save().catch((err)=>{
-				clearToTweet = false;
-				console.log(message + " Something went wrong while saving this blog");
-				//console.log(err);
-			});
-			let postSave = await post.save().catch((err)=>{
-				clearToTweet = false;
-				console.log(message + " Something went wrong while saving this post ");
-				console.log(err);
-			});
-
-			// console.log("tweetBlogs:"+tweetBlogs);
-			// console.log("clearToTweet:"+clearToTweet);
-
-			if (tweetBlogs && clearToTweet) {
-				await tweet(post, blog.cluster).catch((err)=>{
-					console.log(err);
-				});
-				console.log(message + " Tweeted");
-			} else {
-				console.log(message + " tweet supressed");
-			}
-		} else {
-				//console.log(message + " No new post");
-		}
-	} // end blog loop
-	if (sheetOps.length){
-		Sheet.bulkWrite(sheetOps).then(res => {
-			console.log("New Errors: " + res.modifiedCount);
-		});
-		processing = false;
-	} else {
-		console.log("processing compleete.");
-		processing = false; 
-	}
-	
-}
-
-function addBlogs(sheet, tweetBlogs){ //This function adds the blogs from a sheet to the database. Mongo will drop existing blogs, need to implement a warning function for it. 
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
-	axios.get(uri).then((response) => {
-		let blogArray = [];
-		let values = response.data.values;
-		let startRow = parseInt(sheet.range.charAt(1));
-		let sheetError = false;
-		for (let index = 0; index < values.length; index++){
-			let uri = values[index][0];
-			let rowNum = startRow + index;
-			if (!uri){
-				//sheet.error.push({"row": rowNum, "error": "Missing Url", "url": "None"});
-				sheetError = true;
+		let result = await Promise.all(feedArray);
+		for (let k = 0; k < result.length; k++) {
+			let feeds = result[k];
+			if (feeds == undefined) {
+				console.log(blog);
 				continue;
 			}
-			if (!uri.match(/^[a-zA-Z]+:\/\//)){
-				uri = 'http://' + uri;
+			let latest = feeds[0];
+			if (latest.link in clusterPosts) { continue; } // this is in the db
+			if (tweetGo) { // do tweet
+				await tw.postTweet(feedConect, feeds[0]);
 			}
-			var blog = new Blog({
-				baseUrl: uri,
-				dateAdded: Date.now(),
-				active: true,
-				cluster: sheet.cluster,
-				sheet: sheet._id,
-				automation: sheet.automation,
-				row: rowNum
-			});
-			
-			blogArray.push({
-				insertOne: {
-					document: blog
-				}
-			});
+			await db.newPost(feeds[0]);//save post to db
+			clusterPosts[feeds[0].link] = '';
 		}
-		//console.log(blogArray);
-		
-		Blog.bulkWrite(blogArray, {ordered: false}, function (err, res) {
-			if (err){
-				sheetError = true;
-				for (errs in err.writeErrors) {
-					if(!errs.err){
-						continue;
-					}
-					let rowNum = errs.err.op.row;
-					let url = errs.err.op.baseUrl;
-					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url });
-				}
-			} else {
-				console.log("No issues adding " + res.insertedCount + " blogs");
-			}
-			if (sheet.error.length > 0){
-				sheet.save().then(res =>{
-					console.log("Errors pushed to sheet");
-					processBlogs(sheet, tweetBlogs);
-				});
-			} else{
-				processBlogs(sheet, tweetBlogs);
-			}
-		});
-	});
-}
-
-async function updateBlogs(sheet){
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
-	let blogOps = [];
-	await axios.get(uri).then((res) => {
-		let values = res.data.values;
-		let uris = [];
-		let startRow = parseInt(sheet.range.charAt(1));
-		let rowNum = startRow;
-		
-		for (value in values){
-			let uri = value[0];
-			if (uri === '' || uri == undefined){
-				//sheet.error.push({"row": rowNum, "error": "Missing Url", "url": "None"});
-				rowNum++;
-				continue;// just skip
-			}
-			if (!uri.match(/^[a-zA-Z]+:\/\//)){ //Strips the front portion of a url so that it can be standardised for backend use. 
-				uri = 'https://' + uri;
-			}
-			uris.push(uri);
-
-			blogOps.push({ //"Update" if exists, insert if it doesn't
-				updateOne: {
-					filter: {baseUrl: uri, sheet: sheet},
-					update: {
-						baseUrl: uri,
-						active: true,
-						cluster: sheet.cluster,
-						sheet: sheet._id,
-						automation: sheet.automation,
-						row: rowNum
-					},
-					upsert: true, //important
-					setDefaultsOnInsert: true
-				}
-			});
-			rowNum++;
-		}
-		blogOps.push({ //Set all urls no longer present in the sheet to inactive so that they're not checked for posts.
-			updateMany: {
-				filter: {baseUrl: {$nin: uris}, sheet: sheet},
-				update: {active: false}
-			}
-		});
-		
-		Blog.bulkWrite(blogOps, {ordered: false}, function (error, res){ //bulkWrite all operations
-			if (error && error.writeErrors){ 
-				let writeErrors = error.writeErrors;
-				
-				//console.log( error.writeErrors)
-
-				for (let errs in writeErrors) {
-					//console.log(writeErrors[errs].err.op.u['$set']);
-					let rowNum = writeErrors[errs].err.op.u['$set'].row;
-					let url = writeErrors[errs].err.op.u['$set'].baseUrl;
-					
-					console.log("URL AND ROW: " + rowNum + " "+ url); //debug
-					sheet.error.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url }); //Push to error array in sheet
-			}
-				/*sheet.save().then(res => {
-					console.log("Errors pushed to sheet");
-				});*/
-			} else { //if no errors occur
-				console.log("No issues adding " + res.insertedCount + " blogs");
-				console.log("No issues modifying " + res.modifiedCount + " blogs");
-			}
-			if (sheet.error.length > 0){
-				sheet.save().then(res => {
-					console.log('Errors pushed to sheet');
-					processBlogs(sheet, 1);
-				});
-			}
-			else{
-				processBlogs(sheet, 1);
-			}
-		});
-	});
-	
-	//Start reprocessing the sheet here to check for new errors and blog posts.
+	}
 }
 
 sheetRoutes.route('/scheduleTrigger').get(function (req, res){
@@ -467,20 +94,23 @@ sheetRoutes.route('/scheduleTrigger').get(function (req, res){
 
 sheetRoutes.route('/add').post(async function (req, res) { //Adds sheets to the database w/ url and range etc. Refer to the ./src/models folder for database structure info
 	let auth = await authCheck(req, res);
-	if (!auth){
-		return;
-	}
+	if (!auth){ return; }
+	console.log('add sheet');
+	// console.log(req.body);
+	
 	let tweetOnAdd = req.body.tweet;
 	delete req.body.tweet;
+
+	let sheet = await db.addSheet(req.body);
+	let clusterID = req.body.cluster;
 	
-	let entry = new Sheet(req.body); //Shouldn't be any weirdness with this and the cluster stuff, complex checks are done more for blog/post objects.
-		entry.save().then(
-			entry => {
-				addBlogs(entry, tweetOnAdd);
-				res.status(200).json({'entry': 'Entry added successfully'});
-			}).catch(err => {
-				res.status(400).send('Unable to save to database');
-			});
+	await db.updateBlogList(sheet, apiKey);
+	
+	let sheetID = sheet.id;
+	let blogs = await db.getBlogsBySheet(sheetID, true);
+	await processClustersPosts(blogs, clusterID, tweetOnAdd);
+
+	res.status(200).json({'entry': 'Entry added successfully'});
 });
 
 sheetRoutes.route('/update/:id').post(async function (req, res) { //Updates a sheet in the database with new values.
@@ -544,79 +174,48 @@ sheetRoutes.route('/:id').get(async function (req, res) { //Potentially smart to
 	if (!auth){
 		return;
 	}
-	let id = req.params.id;
-	Sheet.find({ cluster: id },function (err, sheet){//Requests sheets from the db by their cluster.
-		if(err){
-			console.log(err);
-		}
-		else {
-			res.json(sheet);
-		}
-	});
+	let sheet = await db.sheetByClusterId(req.params.id);
+	res.json(sheet);
+
 });
-sheetRoutes.route('/getSpreadsheet/:id').get(async function (req, res){ //Another google sheets request thing. This is used when getting all the sheet values rather than just a single range. Still don't know if we need both. Probably not. 
+sheetRoutes.route('/getSpreadsheet/:id').get(async function (req, res) {
+	//Another google sheets request thing. This is used when getting all the sheet values rather than just a single range. Still don't know if we need both. Probably not. 
 	let auth = await authCheck(req, res);
 	if (!auth){
 		return;
 	}
 	let spreadsheetId = req.params.id;
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '?key=' + apiKey;
-	axios.get(uri).then((response) => {
-		res.json(response.data);
-	}).catch((error) => {
-		console.log(error);
-	});
+	let result = await db.getGSheet(spreadsheetId, '', '', apiKey);
+	res.json(result.data);
 });
-
-sheetRoutes.route('/getSheet/:id/:name').get(async function (req, res){ //Honestly I don't know why there's three of them. Review where these are used. 
+sheetRoutes.route('/getSheet/:id/:name').get(async function (req, res) { 
 	let auth = await authCheck(req, res);
 	if (!auth){
 		return;
 	}
 	let id = req.params.id;
 	let name = req.params.name;
-	let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + name + '!A1:J10?key=' + apiKey;
-	axios.get(uri).then((response) => {
-		res.json(response.data);
-	}).catch((error) => {
-		console.log(error);
-	});
+	let result = await db.getGSheet(id, name, 'A1:J10', apiKey);
+	res.json(result.data);
 });
 sheetRoutes.route('/loadSheet/:id').get(async function (req, res){
 	let auth = await authCheck(req, res);
 	if (!auth){
 		return;
 	}
-	Sheet.findById(req.params.id, function(err, sheet) { //We don't store the sheet values in the db, so we request them from google when editing a sheet. 
-		if(err){
-			console.log(err);
-		}
-		else {
-			let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!A1:J10?key=' + apiKey;
-			axios.get(uri).then((response) => {
-				res.json(response.data);
-			}).catch((error) => {
-				console.log(error);
-			});
-		}
-	});
-});
+	let sheet = await db.sheetByid(req.params.id);
+	let response = await db.getBlogsFromGSheet(sheet, apiKey);
+	res.json(response);
 
+});
 sheetRoutes.route('/get/:id').get(async function (req, res) {
 	let auth = await authCheck(req, res);
 	if (!auth){
 		return;
 	}
-	Sheet.findById(req.params.id, function(err, sheet) { //gets a sheet from the db by the sheet id
-		if(err){
-			console.log(err);
-		}
-		else {
-			res.json(sheet);
-		}
-	});
+	let sheet = await db.sheetByid(req.params.id);
+	res.json(sheet);
 });
-
 sheetRoutes.route('/delete/:id').get(async function (req, res) { //Deletes a sheet from the db 
 	let auth = await authCheck(req, res);
 	if (!auth){

@@ -11,7 +11,7 @@ const verbose = true;
 let apiKey = secret.API_KEY;
 let clusterIndex = {};
 const dbName = config.dbName || 'test5';
-const h = require('./mongoHelper.js')
+const h = require('./mongoHelper.js');
 const db = new h( 'mongodb://localhost/' + dbName);
 const tweetHelper = require('./tweetHelper.js');
 const tw = new tweetHelper();
@@ -83,7 +83,7 @@ async function processSheets(sheet) {
 	let [dbStuff, data] = await Promise.all([db.getBlogsFromDB(sheet['_id']), db.getBlogsFromGSheet(sheet, apiKey)]);
 	
 	let dbSheetUrls = dbStuff.dbSheetUrls;
-	let result = db.getSheetUpdatesForMongo(sheet, data, clusterIndex[sheet.cluster]);
+	let result = db.getSheetUpdatesForMongo(sheet, data.values, clusterIndex[sheet.cluster]);
 	let dataList = result.dataList;
 	let blogArray = result.blogArray;
 
@@ -122,7 +122,7 @@ async function processBlogs() {
 			let url = blg.baseUrl;
 
 			if (url in keepUnique) {continue;}// keep blogs in more that one cluster
-			let feed = tw.getFeeds(url, blg); //
+			let feed = tw.getFeeds(blg); //
 			feedArray.push(feed);
 		}
 		i += concuret;

@@ -24,9 +24,42 @@ class mongoHelper {
 		let result =  await query.exec();
 		return result;
 	}
+	async newPost(latestPost){
+		let post = new Post({
+			url: latestPost.link,
+			title: latestPost.title,
+			date: latestPost.pubDate,
+			content: latestPost.content,
+			snippet: latestPost.contentSnippet
+		});
+		post.save().catch(err => {
+				console.log('add post error');
+				//console.log(err)
+		});
+		return post;
+	}
+	
 	async getSheets() {
 		return await this.queryMongo(Sheet.find({}));
 	}
+	async sheetByid(id){
+		let sheetId =  new ObjectId(id);
+		let query = Sheet.find({'_id': sheetId});
+
+		let result = await this.queryMongo(query);
+		return result[0];
+	}
+	async sheetByClusterId(id){
+		let query = Sheet.find({ cluster: id });
+		let result = await this.queryMongo(query);
+		return result;
+	}
+	async getClusterById(id){
+		let query = Cluster.find({ _id: id });
+		let result = await this.queryMongo(query);
+		return result[0];
+	}
+	
 	async populateClusterIndex() {
 		let index = {};
 		let query = Blog.find({}).populate('cluster');
@@ -43,8 +76,9 @@ class mongoHelper {
 		}
 		return index;
 	}
-	async getBlogsFromDB(blogQuery) {
-		let sheetid =  new ObjectId(blogQuery);
+
+	async getBlogsFromDB(id) {
+		let sheetid =  new ObjectId(id);
 		let query = Blog.find({sheet: sheetid});
 		let dbSheetUrls = {};
 	
@@ -55,10 +89,21 @@ class mongoHelper {
 		return {'blogList': blogList, 'dbSheetUrls': dbSheetUrls};
 	}
 	async getBlogsFromGSheet(sheet, apiKey) {
-		let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + sheet.spreadsheetId + '/values/' + sheet.name + '!' + sheet.range + '?key=' + apiKey;
-		let result = await axios.get(uri);
-		let data = result.data.values;
+		let result = await this.getGSheet(sheet.spreadsheetId, sheet.name, sheet.range, apiKey);
+		let data = result.data;
 		return data;
+	}
+	async getGSheet(spreadsheetId, sname, range, apiKey) {
+		let uri = 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId;
+		if (range !== '') {
+			range = '!' + range;
+		}
+		if (sname !== '') {
+			uri = uri + '/values/' + sname + range + '?key=' + apiKey;
+		} else {
+			uri = uri + '?key=' + apiKey;
+		}
+		return await axios.get(uri);
 	}
 	newBlog(blogData) {
 		blogData.dateAdded = Date.now();
@@ -71,7 +116,7 @@ class mongoHelper {
 			setDefaultsOnInsert: true
 		}
 	}
-	addSheet(data) {
+	async addSheet(data) {
 		let entry = new Sheet(data);
 		entry.save().catch(err => {
 				console.log('add sheet error');
@@ -85,16 +130,22 @@ class mongoHelper {
 			return new Promise((resolve,reject) => {
 				Blog.bulkWrite(writeArray, {ordered: false}, function (err, res) {
 					if (err) {
-						console.log('error')
-						console.log(err);
-						let writeErrors = [];
-						if (err.writeErrors) {
-							writeErrors = err.writeErrors;
-							for (let errs in writeErrors) {
-								//console.log(writeErrors[errs]);
-								let rowNum = writeErrors[errs].err.op.u['$set'].row;
-								let url = writeErrors[errs].err.op.u['$set'].baseUrl;
-								console.log("URL AND ROW: " + rowNum + " "+ url); //debug
+						let url,rowNum;
+						//console.log('error on write')
+						
+						if (err.op !== undefined && err.op.row !== undefined && err.op.baseUrl !== undefined) {
+							rowNum = err.op.row;
+							url = err.op.baseUrl;
+							//console.log("URL AND ROW: " + rowNum + " "+ url); //debug
+							sheetError.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url }); //Push to error array in sheet
+						} else {
+							//console.log(Object.keys(err));
+
+							for (let i in err.writeErrors) {
+								let error = err.writeErrors[i];
+								rowNum = error.err.op.row;
+								url = error.err.op.baseUrl;
+								//console.log("URL AND ROW: " + rowNum + " "+ url); //debug
 								sheetError.push({"row": rowNum, "error": "Duplicate Blog Url", "url": url }); //Push to error array in sheet
 							}
 						}
@@ -113,6 +164,37 @@ class mongoHelper {
 				});
 			});
 		}
+	}
+	async updateBlogList(sheet, apiKey) {
+		let sheetId = sheet.id;
+
+		let [dbStuff, data, clusterIndex] = await Promise.all([this.getBlogsFromDB(sheetId), this.getBlogsFromGSheet(sheet, apiKey), this.populateClusterIndex()]);
+		let dbSheetUrls = dbStuff.dbSheetUrls;
+		let result = this.getSheetUpdatesForMongo(sheet, data.values, clusterIndex[sheet.cluster]);
+		
+		let dataList = result.dataList;
+		let blogArray = result.blogArray;
+
+		// deactivat removed blogs
+		let deactivat = [];
+		for (let blag in dbSheetUrls) {
+			if (blag in dataList) {
+				// skip
+			} else {
+				deactivat.push(blag);
+			}
+		}
+
+		if (deactivat.length > 0) {
+			await this.blogWriteBackBulk( [{
+				updateMany: {
+					filter: {baseUrl: {$in: deactivat}, sheet: sheet},
+					update: {active: false}
+				}
+			}], sheet );
+		}
+		await this.blogWriteBackBulk(blogArray, sheet);
+		console.log('blogWriteBackBulk')
 	}
 	
 	async getAllBlogs(activeOnly) {
@@ -140,6 +222,37 @@ class mongoHelper {
 		}
 		let query = Blog.find(filter).populate('cluster').populate('sheet');
 		return await this.queryMongo(query);
+	}
+	
+	async getClusterPosts(clusterID) {
+		let cluster =  new ObjectId(clusterID);
+		let query = Blog.find({cluster: cluster});
+		let blogList = await this.queryMongo(query);
+		//console.log(blogList);
+		let postUrls = {};
+		
+		for (let i = 0; i < blogList.length; i++) {
+			//console.log(blogList[i]['_id'])
+			let id = new ObjectId(blogList[i]['_id']);
+			let q2 = Post.find({blog: id});
+			let posts = await this.queryMongo(q2);
+			for (let j = 0; j < posts.length; j++) {
+				postUrls[posts[j]['url']] = '';
+			}
+		}
+		return postUrls;
+	}
+	
+	async getBlogsFromDB(id) {
+		let sheetid =  new ObjectId(id);
+		let query = Blog.find({sheet: sheetid});
+		let dbSheetUrls = {};
+	
+		let blogList = await this.queryMongo(query);
+		for (let i = 0; i < blogList.length; i++) {
+			dbSheetUrls[blogList[i].baseUrl] = blogList[i].active;
+		}
+		return {'blogList': blogList, 'dbSheetUrls': dbSheetUrls};
 	}
 	
 	getSheetUpdatesForMongo(sheet, data, dbSheetUrls){
