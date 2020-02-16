@@ -29,12 +29,13 @@ class mongoHelper {
 			url: latestPost.link,
 			title: latestPost.title,
 			date: latestPost.pubDate,
+			blog: latestPost.blogId, 
 			content: latestPost.content,
 			snippet: latestPost.contentSnippet
 		});
 		post.save().catch(err => {
 				console.log('add post error');
-				//console.log(err)
+				console.log(err['errmsg']);
 		});
 		return post;
 	}
@@ -228,7 +229,6 @@ class mongoHelper {
 		let cluster =  new ObjectId(clusterID);
 		let query = Blog.find({cluster: cluster});
 		let blogList = await this.queryMongo(query);
-		//console.log(blogList);
 		let postUrls = {};
 		
 		for (let i = 0; i < blogList.length; i++) {
@@ -237,6 +237,7 @@ class mongoHelper {
 			let q2 = Post.find({blog: id});
 			let posts = await this.queryMongo(q2);
 			for (let j = 0; j < posts.length; j++) {
+				//console.log(posts[j]['url'])
 				postUrls[posts[j]['url']] = '';
 			}
 		}

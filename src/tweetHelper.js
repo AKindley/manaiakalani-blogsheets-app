@@ -39,7 +39,8 @@ class tweetHelper {
 							snippet: feed.items[i].contentSnippet,
 							sheetName: blog.sheet.name,
 							clusterName: blog.cluster.name,
-							twitter: blog.cluster.twitter
+							twitter: blog.cluster.twitter,
+							blogId: blog['_id']
 						}
 						if (typeof(post.title) == 'object') {
 							post.title = '';

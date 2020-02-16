@@ -52,6 +52,7 @@ async function authCheck(req, res){
 }
 
 async function processClustersPosts(blogs, clusterID, tweetGo){
+	console.log('process blogs');
 	let [cluster, clusterPosts] = await Promise.all([ db.getClusterById(clusterID), db.getClusterPosts(clusterID)]);
 	// let cluster = await db.getClusterById(clusterID)
 	// let clusterPosts = await db.getClusterPosts(clusterID);
@@ -70,7 +71,6 @@ async function processClustersPosts(blogs, clusterID, tweetGo){
 		for (let k = 0; k < result.length; k++) {
 			let feeds = result[k];
 			if (feeds == undefined) {
-				console.log(blog);
 				continue;
 			}
 			let latest = feeds[0];
@@ -82,6 +82,7 @@ async function processClustersPosts(blogs, clusterID, tweetGo){
 			clusterPosts[feeds[0].link] = '';
 		}
 	}
+	console.log('process blogs completed');
 }
 
 sheetRoutes.route('/scheduleTrigger').get(function (req, res){
@@ -96,17 +97,16 @@ sheetRoutes.route('/add').post(async function (req, res) { //Adds sheets to the 
 	let auth = await authCheck(req, res);
 	if (!auth){ return; }
 	console.log('add sheet');
-	// console.log(req.body);
 	
-	let tweetOnAdd = req.body.tweet;
+	let tweetOnAdd = req.body.tweet;// tweet flag
 	delete req.body.tweet;
 
 	let sheet = await db.addSheet(req.body);
+	let sheetID = sheet.id;
 	let clusterID = req.body.cluster;
 	
 	await db.updateBlogList(sheet, apiKey);
-	
-	let sheetID = sheet.id;
+
 	let blogs = await db.getBlogsBySheet(sheetID, true);
 	await processClustersPosts(blogs, clusterID, tweetOnAdd);
 
@@ -118,31 +118,21 @@ sheetRoutes.route('/update/:id').post(async function (req, res) { //Updates a sh
 	if (!auth){
 		return;
 	}
-	Sheet.findById(req.params.id, async function(err, sheet) {
-		if (!sheet) return next (new Error('Could not load Document'));
-		else {
-			sheet.name = req.body.name;
-			sheet.title = req.body.title;
-			sheet.range = req.body.range;
-			sheet.cluster = req.body.cluster;
-			sheet.spreadsheetId = req.body.spreadsheetId;
-			sheet.sheetId = req.body.sheetId;
-			sheet.automation = req.body.automation;
-			sheet.error = []; //reset errors on sheet update - will be repopulated if errors still exist
-			let tweetOnAdd = req.body.tweet;
-			
-			//await Blog.updateMany({active: true, sheet: sheet._id}, {automation: sheet.automation});
-			sheet.save().then(sheet => {
-				res.json('Update complete');
-				//updateBlogs(sheet); //Update call for error checking and blog updates
-				addBlogs(sheet, tweetOnAdd);
-			})
-			.catch(err => {
-				//res.status(400).send('Unable to update the database');
-				console.log(err);
-			});
-		}
-	});
+	console.log('sheet update');
+	//console.log(req.body)
+
+	let tweetOnAdd = req.body.tweet;// tweet flag
+	delete req.body.tweet;
+
+	let sheet = await db.sheetByid(req.params.id);
+	let sheetID = sheet.id;
+	let clusterID = sheet.cluster;
+	
+	await db.updateBlogList(sheet, apiKey);
+	
+	let blogs = await db.getBlogsBySheet(sheetID, true);
+	await processClustersPosts(blogs, clusterID, tweetOnAdd);
+	res.status(200).send("Schroedinger's Database"); //Chrome was complaining about not getting a response
 });
 
 sheetRoutes.route('/process/:id').post(async function (req, res){ //Process call for regular sheet updates, can involve a sheetId or a complete db update. 
@@ -150,22 +140,15 @@ sheetRoutes.route('/process/:id').post(async function (req, res){ //Process call
 	if (!auth){
 		return;
 	}
-	let id = req.params.id; //Need to implement per cluster. 
-	if (id == 'complete'){ //Processes the entire collection of blogs, except for inactive or manual update blogs. 
-		//processBlogs();
-		console.log()
-		processBlogs();
-	}
-	else{
-		Sheet.findById(id, function (err, sheet){ //Processes all the active blogs in a sheet, essentially the manual blog check. 
-			if (err) {
-				console.log(err);
-			}
-			else{
-				processBlogs(sheet, 1);
-			}
-		});
-	}
+	let sheet = await db.sheetByid(req.params.id);
+	let sheetID = sheet.id;
+	let clusterID = sheet.cluster;
+	
+	await db.updateBlogList(sheet, apiKey);
+	
+	let blogs = await db.getBlogsBySheet(sheetID, true);
+	await processClustersPosts(blogs, clusterID, true);
+
 	res.status(200).send("Schroedinger's Database"); //Chrome was complaining about not getting a response
 });
 
