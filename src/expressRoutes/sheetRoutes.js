@@ -75,7 +75,7 @@ async function processClustersPosts(blogs, clusterID, tweetGo){
 			}
 			let latest = feeds[0];
 			if (latest.link in clusterPosts) { continue; } // this is in the db
-			if (tweetGo) { // do tweet
+			if (tweetGo && feedConect) { // do tweet
 				await tw.postTweet(feedConect, feeds[0]);
 			}
 			await db.newPost(feeds[0]);//save post to db
@@ -85,10 +85,23 @@ async function processClustersPosts(blogs, clusterID, tweetGo){
 	console.log('process blogs completed');
 }
 
-sheetRoutes.route('/scheduleTrigger').get(function (req, res){
+sheetRoutes.route('/scheduleTrigger').get(async function (req, res){
 	//http://127.0.0.1:4000/api/sheets/scheduleTrigger
-	if ( req.headers.authorization === config.scheduleKey ){
-		processBlogs();
+	if (req.headers.authorization === config.scheduleKey ){
+		console.log('skeduled check');
+		
+		let sheets = await db.getSheets();
+		for (let i = 0; i < sheets.length; i++) {
+			let sheet = sheets[i];
+			let sheetID = sheet['_id'];
+			let clusterID = sheet['cluster'];
+
+			await db.updateBlogList(sheet, apiKey);
+			let blogs = await db.getBlogsBySheet(sheetID, true);
+			await processClustersPosts(blogs, clusterID, true);
+		}
+		console.log('skeduled check finished');
+		
 	}
 	res.end();
 });
