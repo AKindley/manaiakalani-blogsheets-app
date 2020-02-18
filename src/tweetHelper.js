@@ -59,7 +59,7 @@ class tweetHelper {
 	feedConnet(consumerKey, consumerSecret, cluster) {
 		if ( cluster.access_token == '' || cluster.access_token == undefined) {
 			console.log(cluster.name + ' has no twiiter credentuals, tweet skipped');
-			return 1;
+			return false;
 		}
 		let feed = new Twit({
 			consumer_key: consumerKey,
@@ -72,6 +72,10 @@ class tweetHelper {
 	tweetContent(post){
 		if (post.title === undefined || post.title === 'undefined'){ // fix undefined 
 			post.title= '';
+		}
+		if (post.snippet == undefined) {
+			console.log('post snippet is undefinmed');
+			console.log(post);
 		}
 		let xmlString = post.content;
 		let doc = HTMLParser.parse(xmlString);
@@ -139,7 +143,7 @@ class tweetHelper {
 				options['media_ids'] = [mediaIdStr];
 				if (file){
 					fs.unlink(file, (err) => {
-						if (err) throw err;
+						if (err) console.log(err);
 					});
 				}
 			}
