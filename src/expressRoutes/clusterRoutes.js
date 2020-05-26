@@ -27,6 +27,21 @@ async function authCheck(req, res){
 			}
 		});
 }
+clusterRoutes.route('/twitterUnlink/:id').post(async function (req, res) {
+	let auth = await authCheck(req, res);
+	if (!auth){
+		return;
+	}
+	Cluster.findById(req.params.id, async function(err, cluster) {
+		cluster.access_token = undefined;
+		cluster.access_token_secret = undefined;
+		cluster.save().then(cluster => {
+			res.json('Update complete');
+		}).catch(err => {
+			res.status(400).send('Unable to update the database');
+		});
+	});
+});
 clusterRoutes.route('/add').post(async function (req, res) {
 	let auth = await authCheck(req, res);
 	if (!auth){
@@ -47,12 +62,12 @@ clusterRoutes.route('/').get(async function (req, res) {
 		return;
 	}
 	Cluster.find(async function (err, clusters){
-		if(err){
+		if (err) {
 			console.log(err);
-		}
-		else {
+		} else {
 			let clusterList = [];
-			for (let cluster of clusters){
+			for (let i = 0; i < clusters.length; i++) {
+				let cluster = clusters[i];
 				let errList = [];
 				await Sheet.find({cluster: cluster},function(err, sheets){
 					if (err){console.log(err)}

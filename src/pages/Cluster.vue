@@ -1,14 +1,15 @@
 <template>
-  <div>
+<div>
 	<button @click="goBack" style="float:left">BACK</button>
-    <img alt="Vue logo" src="../assets/logo.png"><br>
-		<label>Cluster Name: <div>
+	<img alt="Vue logo" src="../assets/logo.png"><br>
+	<label>Cluster Name: <div>
 			<input v-if="editing" v-model="clusterName" placeholder="name...">
 			<span v-if="!editing">{{clusterName}}</span>
 		</div></label>
 		<label>Twitter Handle: <div>
 			<span v-if="!editing">{{clusterTwitter}}</span>
-			<input v-if="editing" v-model="clusterTwitter" placeholder="twitter...">
+			<input v-if="editing" v-model="clusterTwitter" placeholder="twitter..."><br>
+			<button v-if="groups.access_token&&cluster" @click="unlink">unlink twitter</button>
 		</div></label>
 	<div>
 	<div v-if="!groups.access_token&&cluster!=='add'&&loaded==true" style="height:75px;margin:auto;position:relative;color:black;margin-top:30px;overflow:hidden;font-size:larger;background-color:#4289ca">
@@ -66,31 +67,40 @@ export default {
 		sheetsGoPlease (event) {
 			this.$router.push(window.location.pathname + '/' + event.currentTarget.getAttribute('data-key'));
 		},
+		async unlink (event) {
+			event.preventDefault();
+			if (await this.sessionCall()){
+				let uri = server + '/api/entries/twitterUnlink/'+ this.cluster;
+				let testThing = {};
+				testThing.name = this.clusterName;
+				testThing.twitter = this.clusterTwitter;
+				this.axios.post(uri, testThing);
+			} else {this.$router.push('/'); }
+			this.$router.go(0);
+		},
 		async submitMe (event) {
 			event.preventDefault();
-			if(await this.sessionCall()){
+			if (await this.sessionCall()){
 				let uri = server + '/api/entries/add';
 				let testThing = {};
 				testThing.name = this.clusterName;
 				testThing.twitter = this.clusterTwitter;
 				this.axios.post(uri, testThing);
 				this.$router.go(-1);
-			}
-			else{this.$router.push('/');}
+			} else{ this.$router.push('/'); }
 		},
 		goBack () {
 			this.$router.go(-1);
 		},
 		async update (event) {
 			event.preventDefault();
-			if(await this.sessionCall()){
+			if (await this.sessionCall()){
 				let uri = '/entries/update/' + this.cluster;
 				let testThing = this.groups;
 				testThing.name = this.clusterName;
 				testThing.twitter = this.clusterTwitter;
 				this.axios.post(uri, testThing);
-			}
-			else{this.$router.push('/');}
+			} else {this.$router.push('/');}
 		},
 		editCluster (event) {
 			event.preventDefault();
@@ -98,10 +108,9 @@ export default {
 		},
 		async twitterLog(event) {
 			event.preventDefault();
-			if(await this.sessionCall()){
+			if (await this.sessionCall()){
 				window.open( server + '/api/auth/twitter/init/' + this.cluster); //Twitter auth link call
-			}
-			else{this.$router.push('/');}
+			} else {this.$router.push('/');}
 		},
 		async sessionCall () {
 			return await this.axios.get('/auth/google/session').then((res) => {

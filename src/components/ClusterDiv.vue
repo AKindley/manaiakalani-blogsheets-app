@@ -27,8 +27,6 @@
 				this.$router.push(window.location.pathname + '/' + this.cluster.id);
 			}
 		}
-		
-		
 	}
 </script>
 

@@ -40,7 +40,7 @@ passport.use(new TwitterStrategy({ //passport strategy for twitter auth
 	function(req, token, tokenSecret, user, done){ //Runs once authentication is completed, it will save the acquired tokens to the relevant Cluster in the db.
 		passport.serializeUser((user, done) => done(null, user)); //serializeUser and deserializeUser are important for avoiding passport errors. 
 		passport.deserializeUser((user, done) => done(null, user));
-		var cluster = req.session.cluster; //grab cluster db id
+		let cluster = req.session.cluster; //grab cluster db id
 		Cluster.findById(cluster, function(err, clust){ //find cluster by ID and save newly acquired tokens.
 			if (err){console.log(err)}
 			clust.access_token = token;
