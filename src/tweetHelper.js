@@ -7,11 +7,14 @@ const request = require('request');
 const parser = new Parser();
 const crypto = require('crypto');
 
-
 let Twit = require('twit');
 
 const charicterLimit = 280;
 const imagePath = 'img/';
+const skipStrings = [
+	"Nau mai, haere mai"
+]
+
 
 class tweetHelper {
 	constructor() {}
@@ -96,6 +99,12 @@ class tweetHelper {
 		return {tweetBody: newTweet, img: firstImg};
 	}
 	skipTweeting(tweetContent) {
+		for (let i =0; i < skipStrings.length; 1++){
+			if (tweetContent == skipStrings[i] ) {
+				console.log('skipped:' + tweetContent);
+				return true;
+			}
+		}
 		return false;
 	}
 	async imageRetreve(uri, filename) {
