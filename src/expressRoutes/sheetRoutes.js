@@ -70,7 +70,7 @@ async function processClustersPosts(blogs, clusterID, tweetGo){
 		let result = await Promise.all(feedArray);
 		for (let k = 0; k < result.length; k++) {
 			let feeds = result[k];
-			if (feeds == undefined) {
+			if (feeds == undefined || feeds[0] == undefined) {
 				continue;
 			}
 			let latest = feeds[0];
