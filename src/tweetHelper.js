@@ -99,7 +99,7 @@ class tweetHelper {
 		return {tweetBody: newTweet, img: firstImg};
 	}
 	skipTweeting(tweetContent) {
-		for (let i =0; i < skipStrings.length; 1++){
+		for (let i =0; i < skipStrings.length; i++){
 			if (tweetContent == skipStrings[i] ) {
 				console.log('skipped:' + tweetContent);
 				return true;
