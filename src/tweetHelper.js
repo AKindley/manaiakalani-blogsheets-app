@@ -135,16 +135,22 @@ class tweetHelper {
 			let options = {status: tweetCon.tweetBody};
 
 			if (tweetCon.img) { // tweets with images
-				let imageSrc = tweetCon.img.attributes.src;
-				let file = imagePath + crypto.randomBytes(10).toString('hex') + '.png';
+				try {
+					let imageSrc = tweetCon.img.attributes.src;
+					let file = imagePath + crypto.randomBytes(10).toString('hex') + '.png';
 
-				let b64 = await objectScope.imageRetreve(imageSrc, file)
-				let mediaIdStr = await objectScope.imageUpload(feedConn, {media_data: b64});
-				options['media_ids'] = [mediaIdStr];
-				if (file){
-					fs.unlink(file, (err) => {
-						if (err) console.log(err);
-					});
+				
+					let b64 = await objectScope.imageRetreve(imageSrc, file)
+					let mediaIdStr = await objectScope.imageUpload(feedConn, {media_data: b64});
+					options['media_ids'] = [mediaIdStr];
+					if (file){
+						fs.unlink(file, (err) => {
+							if (err) console.log(err);
+						});
+					}
+				} catch (err) {
+					console.log(err);
+					console.log(twitPost);
 				}
 			}
 
