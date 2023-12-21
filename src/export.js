@@ -15,6 +15,7 @@ const h = require('./mongoHelper.js');
 const db = new h( 'mongodb://localhost/' + dbName);
 const tweetHelper = require('./tweetHelper.js');
 const tw = new tweetHelper();
+
 doStuff();
 
 async function doStuff() {
@@ -30,7 +31,6 @@ async function doStuff() {
 	await processBlogs();
 	db.close();
 };
-
 function getSheetUpdatesForMongo(sheet, data) {
 
 	let blogArray = [];
@@ -130,7 +130,7 @@ async function processBlogs() {
 
 		for (let k = 0; k < result.length; k++) {
 			let bloginstance = result[k];
-			if(bloginstance == undefined) {continue;}
+			if (bloginstance == undefined) {continue;}
 			for (let l = 0; l < bloginstance.length; l++) {
 				values.push(bloginstance[l]);
 			}

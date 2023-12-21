@@ -15,7 +15,6 @@ const skipStrings = [
 	"Nau mai, haere mai"
 ]
 
-
 class tweetHelper {
 	constructor() {}
 
@@ -174,7 +173,6 @@ class tweetHelper {
 			});
 		});
 	}
-
 
 }
 

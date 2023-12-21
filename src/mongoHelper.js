@@ -128,7 +128,7 @@ class mongoHelper {
 	async blogWriteBackBulk(writeArray, sheet) {
 		if (writeArray.length > 0) {
 			let sheetError = [];
-			return new Promise((resolve,reject) => {
+			return new Promise ((resolve,reject) => {
 				Blog.bulkWrite(writeArray, {ordered: false}, function (err, res) {
 					if (err) {
 						let url,rowNum;

@@ -1,4 +1,5 @@
 import Home from './pages/Home.vue'
+import Login from './pages/Login.vue'
 import Sheet from './pages/Sheet.vue'
 import Lobby from './pages/Lobby.vue'
 import Cluster from './pages/Cluster.vue'
@@ -8,27 +9,47 @@ import Callback from './pages/Callback.vue'
 export default [
 	{ 
 		path: '/',
-		component: Home
+		component: Fail,
+		meta: {
+			requiresAuth:false
+		}
+	},
+	{ 
+		path: '/login',
+		component: Login,
+		meta: {
+			requiresAuth:false
+		}
 	},
 	{
 		path: '/lobby',
-		component: Lobby
+		component: Lobby,
+		meta: {
+			requiresAuth:true
+		}
 	},
 	{
 		path: '/lobby/:cluster',
 		component: Cluster,
-		props: true
-		
+		props: true,
+		meta: {
+			requiresAuth:true
+		}
 	},
 	{
 		path: '/lobby/:cluster/:sheet',
 		component: Sheet,
-		props: true
+		props: true,
+		meta: {
+			requiresAuth:true
+		}
 	},
 	{
 		path: '/auth/twitter/callback',
-		component: Callback
-		
+		component: Callback,
+		meta: {
+			requiresAuth:false
+		}
 	},
 	{
 		path: '*',
